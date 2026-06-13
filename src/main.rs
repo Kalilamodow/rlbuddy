@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod rl_stats_api;
 
 use eframe::egui;
 
@@ -13,6 +14,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "lobby ranks",
         gui_options,
-        Box::new(|_cx| Ok(Box::<app::RankDisplayApp>::default())),
+        Box::new(|_cx| Ok(Box::new(app::RankDisplayApp::new()))),
     )
 }
