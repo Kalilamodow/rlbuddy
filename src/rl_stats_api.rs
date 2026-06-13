@@ -54,8 +54,7 @@ impl From<StatsApiPlayerData> for PlayerData {
 
 pub enum StatsApiError {
     CouldNotConnect,
-    Disconnected,
-    InvalidStatsApiMessage,
+    InvalidStatsApiMessage(String),
 }
 
 impl fmt::Display for StatsApiError {
@@ -65,8 +64,7 @@ impl fmt::Display for StatsApiError {
                 f,
                 "couldnt connect to statsapi (make sure you have it enabled)"
             ),
-            Self::Disconnected => write!(f, "disconnected from rl"),
-            Self::InvalidStatsApiMessage => write!(f, "got an invalid stats api message"),
+            Self::InvalidStatsApiMessage(s) => write!(f, "got an invalid stats api message: {s}"),
         }
     }
 }
@@ -83,26 +81,28 @@ pub fn connect_to_stats_api<F: Fn(Vec<PlayerData>)>(
 
     loop {
         let n_bytes = match tcp.read(&mut read_buffer) {
-            Ok(0) => return Err(StatsApiError::Disconnected),
+            Ok(0) => continue,
             Ok(b) => b,
             Err(_) => return Err(StatsApiError::CouldNotConnect),
         };
 
         let text = match std::str::from_utf8(&read_buffer[..n_bytes]) {
             Ok(t) => t,
-            Err(_) => return Err(StatsApiError::InvalidStatsApiMessage),
+            Err(_) => {
+                return Err(StatsApiError::InvalidStatsApiMessage(String::from(
+                    "cant decode",
+                )));
+            }
         };
 
-        let event: StatsApiEvent = or_error(
-            serde_json::from_str(&text),
-            StatsApiError::InvalidStatsApiMessage,
-        )?;
+        let Ok(event) = serde_json::from_str::<StatsApiEvent>(&text) else {
+            // ignore (probably framing issue)
+            continue;
+        };
 
         if event.event == "UpdateState" {
-            let data: UpdateStateEventData = or_error(
-                serde_json::from_str(&event.data),
-                StatsApiError::InvalidStatsApiMessage,
-            )?;
+            let data: UpdateStateEventData = serde_json::from_str(&event.data)
+                .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
             on_player_update(data.players.into_iter().map(Into::into).collect());
         };
     }
