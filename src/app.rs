@@ -1,4 +1,5 @@
-use crate::rl_stats_api;
+use crate::ranks::PlayerRankInformation;
+use crate::rl_stats_api::{self, PlayerData};
 use eframe::egui;
 use std::sync::mpsc;
 use std::thread;
@@ -7,45 +8,30 @@ fn bold_text(text: &str) -> egui::RichText {
     egui::RichText::new(text).strong()
 }
 
-struct PlayerRanks {
-    player_name: String,
-    ranked_1s: String,
-    ranked_2s: String,
-    ranked_3s: String,
-}
-
 pub struct RankDisplayApp {
-    players_receiver: mpsc::Receiver<Result<Vec<PlayerRanks>, String>>,
-    players: Option<Vec<PlayerRanks>>,
+    players_receiver: mpsc::Receiver<Result<Vec<PlayerData>, String>>,
+    players: Option<Vec<PlayerData>>,
+    player_ranks: PlayerRankInformation,
     current_error: Option<String>,
 }
 
 impl RankDisplayApp {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
+        let (player_tx, player_rx) = mpsc::channel();
         let app = RankDisplayApp {
             players: None,
-            players_receiver: rx,
+            players_receiver: player_rx,
+            player_ranks: PlayerRankInformation::new(),
             current_error: None,
         };
 
         thread::spawn(move || {
             let result = rl_stats_api::connect_to_stats_api(|player_datas| {
-                tx.send(Ok(player_datas
-                    .into_iter()
-                    .map(|data| PlayerRanks {
-                        player_name: data.name,
-                        // TODO: get actual ranks here
-                        ranked_1s: String::from("ssl"),
-                        ranked_2s: String::from("ssl"),
-                        ranked_3s: String::from("ssl"),
-                    })
-                    .collect()))
-                    .unwrap();
+                player_tx.send(Ok(player_datas)).unwrap();
             });
 
             if let Err(error) = result {
-                tx.send(Err(error.to_string())).unwrap();
+                player_tx.send(Err(error.to_string())).unwrap();
             }
         });
 
@@ -66,10 +52,26 @@ impl RankDisplayApp {
                     ui.end_row();
 
                     for player in players {
-                        ui.label(&player.player_name);
-                        ui.label(&player.ranked_1s);
-                        ui.label(&player.ranked_2s);
-                        ui.label(&player.ranked_3s);
+                        ui.label(&player.name);
+
+                        if let Some(ranks) = self.player_ranks.get(&player) {
+                            ui.label(match &ranks.ranked_1s {
+                                Some(txt) => txt,
+                                None => "None",
+                            });
+                            ui.label(match &ranks.ranked_2s {
+                                Some(txt) => txt,
+                                None => "None",
+                            });
+                            ui.label(match &ranks.ranked_3s {
+                                Some(txt) => txt,
+                                None => "None",
+                            });
+                        } else {
+                            ui.label("Loading...");
+                            ui.label("Loading...");
+                            ui.label("Loading...");
+                        }
                         ui.end_row();
                     }
                 });

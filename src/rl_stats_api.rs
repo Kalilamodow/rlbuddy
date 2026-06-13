@@ -3,6 +3,7 @@ use std::{
     fmt,
     io::Read,
     net::{SocketAddr, TcpStream},
+    str::FromStr,
 };
 
 fn or_error<R, OldE, NewE>(r: Result<R, OldE>, e: NewE) -> Result<R, NewE> {
@@ -34,10 +35,30 @@ struct UpdateStateEventData {
     players: Vec<StatsApiPlayerData>,
 }
 
+#[derive(Debug)]
+pub enum Platform {
+    Epic,
+    Steam,
+}
+
+#[derive(Debug)]
+pub struct UnknownPlatform;
+
+impl FromStr for Platform {
+    type Err = UnknownPlatform;
+    fn from_str(s: &str) -> Result<Platform, Self::Err> {
+        match s {
+            "Epic" => Ok(Platform::Epic),
+            "Steam" => Ok(Platform::Steam),
+            _ => Err(UnknownPlatform),
+        }
+    }
+}
+
 pub struct PlayerData {
     pub name: String,
-    pub platform: String,
-    pub uuid: String,
+    pub platform: Platform,
+    pub platform_id: String,
 }
 
 impl From<StatsApiPlayerData> for PlayerData {
@@ -46,9 +67,24 @@ impl From<StatsApiPlayerData> for PlayerData {
 
         PlayerData {
             name: value.name,
-            platform: String::from(parts[0]),
-            uuid: String::from(parts[1]),
+            platform: Platform::from_str(parts[0]).unwrap(),
+            platform_id: String::from(parts[1]),
         }
+    }
+}
+
+impl fmt::Display for PlayerData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} ({}) [{}]",
+            self.name,
+            match self.platform {
+                Platform::Epic => "epic",
+                Platform::Steam => "steam",
+            },
+            self.platform_id
+        )
     }
 }
 
