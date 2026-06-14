@@ -91,9 +91,11 @@ impl PlayerRankInformation {
                 Platform::Epic => "epic",
                 Platform::Steam => "steam",
                 Platform::Xbox => "xbl",
+                Platform::PlayStation => "psn",
             },
             match player.platform {
-                Platform::Epic | Platform::Xbox => urlencoding::encode(&player.name).into_owned(),
+                Platform::Epic | Platform::Xbox | Platform::PlayStation =>
+                    urlencoding::encode(&player.name).into_owned(),
                 Platform::Steam => player.platform_id.clone(),
             }
         );

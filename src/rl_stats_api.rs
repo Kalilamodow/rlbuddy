@@ -40,6 +40,7 @@ pub enum Platform {
     Epic,
     Steam,
     Xbox,
+    PlayStation,
 }
 
 #[derive(Debug)]
@@ -52,6 +53,7 @@ impl FromStr for Platform {
             "Epic" => Ok(Platform::Epic),
             "Steam" => Ok(Platform::Steam),
             "XboxOne" => Ok(Platform::Xbox),
+            "PS4" => Ok(Platform::PlayStation),
             _ => Err(UnknownPlatform),
         }
     }
@@ -87,6 +89,7 @@ impl fmt::Display for PlayerData {
                 Platform::Epic => "epic",
                 Platform::Steam => "steam",
                 Platform::Xbox => "xbox",
+                Platform::PlayStation => "playstation",
             },
             self.platform_id
         )
