@@ -78,7 +78,7 @@ impl RankDisplayApp {
                     }
                 });
         } else {
-            ui.label("connecting...");
+            ui.label("waiting for game...");
             ui.spinner();
         }
     }
