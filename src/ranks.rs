@@ -85,21 +85,18 @@ impl PlayerRankInformation {
             return existing.clone();
         }
 
-        let url = match player.platform {
-            Platform::Epic => {
-                // epic uses the player name as an identifier
-                format!(
-                    "https://api.tracker.gg/api/v2/rocket-league/standard/profile/epic/{}",
-                    urlencoding::encode(&player.name)
-                )
+        let url = format!(
+            "https://api.tracker.gg/api/v2/rocket-league/standard/profile/{}/{}",
+            match player.platform {
+                Platform::Epic => "epic",
+                Platform::Steam => "steam",
+                Platform::Xbox => "xbl",
+            },
+            match player.platform {
+                Platform::Epic | Platform::Xbox => urlencoding::encode(&player.name).into_owned(),
+                Platform::Steam => player.platform_id.clone(),
             }
-            Platform::Steam => {
-                format!(
-                    "https://api.tracker.gg/api/v2/rocket-league/standard/profile/steam/{}",
-                    player.platform_id
-                )
-            }
-        };
+        );
 
         let context = self.context.clone();
         thread::spawn(move || {

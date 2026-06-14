@@ -39,6 +39,7 @@ struct UpdateStateEventData {
 pub enum Platform {
     Epic,
     Steam,
+    Xbox,
 }
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ impl FromStr for Platform {
         match s {
             "Epic" => Ok(Platform::Epic),
             "Steam" => Ok(Platform::Steam),
+            "XboxOne" => Ok(Platform::Xbox),
             _ => Err(UnknownPlatform),
         }
     }
@@ -61,15 +63,17 @@ pub struct PlayerData {
     pub platform_id: String,
 }
 
-impl From<StatsApiPlayerData> for PlayerData {
-    fn from(value: StatsApiPlayerData) -> Self {
-        let parts: Vec<&str> = value.id_data.split("|").collect();
+fn parse_stats_api_player(value: StatsApiPlayerData) -> Option<PlayerData> {
+    let parts: Vec<&str> = value.id_data.split("|").collect();
 
-        PlayerData {
+    if let Ok(platform) = Platform::from_str(parts[0]) {
+        Some(PlayerData {
             name: value.name,
-            platform: Platform::from_str(parts[0]).unwrap(),
+            platform: platform,
             platform_id: String::from(parts[1]),
-        }
+        })
+    } else {
+        None
     }
 }
 
@@ -82,6 +86,7 @@ impl fmt::Display for PlayerData {
             match self.platform {
                 Platform::Epic => "epic",
                 Platform::Steam => "steam",
+                Platform::Xbox => "xbox",
             },
             self.platform_id
         )
@@ -139,7 +144,13 @@ pub fn connect_to_stats_api<F: Fn(Vec<PlayerData>)>(
         if event.event == "UpdateState" {
             let data: UpdateStateEventData = serde_json::from_str(&event.data)
                 .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
-            on_player_update(data.players.into_iter().map(Into::into).collect());
+            on_player_update(
+                data.players
+                    .into_iter()
+                    .map(parse_stats_api_player)
+                    .filter_map(std::convert::identity)
+                    .collect(),
+            );
         };
     }
 }
