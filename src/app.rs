@@ -28,8 +28,11 @@ impl RankDisplayApp {
         let ctx = ctx.egui_ctx.clone();
         thread::spawn(move || {
             let result = rl_stats_api::connect_to_stats_api(|player_datas| {
-                player_tx.send(Ok(player_datas)).unwrap();
-                ctx.request_repaint();
+                if let Err(error) = player_tx.send(Ok(player_datas)) {
+                    eprintln!("[player_tx] error: {}", error);
+                } else {
+                    ctx.request_repaint();
+                }
             });
 
             if let Err(error) = result {
@@ -43,18 +46,20 @@ impl RankDisplayApp {
     fn render_main_content(&mut self, ui: &mut egui::Ui) {
         if let Some(players) = &self.players {
             egui::Grid::new("player list")
-                .num_columns(4)
+                .num_columns(5)
                 .spacing([12.0, 12.0])
                 .striped(true)
                 .show(ui, |ui| {
                     ui.label(bold_text("Name"));
-                    ui.label(bold_text("1s"));
-                    ui.label(bold_text("2s"));
-                    ui.label(bold_text("3s"));
+                    ui.label(bold_text("Platform"));
+                    ui.label(bold_text("Ranked 1s"));
+                    ui.label(bold_text("Ranked 2s"));
+                    ui.label(bold_text("Ranked 3s"));
                     ui.end_row();
 
                     for player in players {
                         ui.label(&player.name);
+                        ui.label(player.platform.to_string());
 
                         if let Some(ranks) = self.player_ranks.get(&player) {
                             ui.label(match &ranks.ranked_1s {

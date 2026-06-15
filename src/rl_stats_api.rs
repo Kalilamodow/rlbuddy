@@ -59,6 +59,21 @@ impl FromStr for Platform {
     }
 }
 
+impl fmt::Display for Platform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Platform::Epic => "Epic",
+                Platform::Steam => "Steam",
+                Platform::PlayStation => "PlayStation",
+                Platform::Xbox => "Xbox",
+            }
+        )
+    }
+}
+
 pub struct PlayerData {
     pub name: String,
     pub platform: Platform,
@@ -84,14 +99,7 @@ impl fmt::Display for PlayerData {
         write!(
             f,
             "{} ({}) [{}]",
-            self.name,
-            match self.platform {
-                Platform::Epic => "epic",
-                Platform::Steam => "steam",
-                Platform::Xbox => "xbox",
-                Platform::PlayStation => "playstation",
-            },
-            self.platform_id
+            self.name, self.platform, self.platform_id
         )
     }
 }
