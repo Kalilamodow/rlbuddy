@@ -120,7 +120,7 @@ fn rank_by_playlist(skills: &Vec<GetPlayerSkillsResponseSkill>, playlist: u8) ->
         .map(|sk| tier_to_rank(sk.tier))
 }
 
-pub struct PlayerRankInformation {
+pub struct RankAPI {
     // key is stringified PlayerData
     // option for whether its loaded yet
     ranks: Arc<RwLock<HashMap<String, Option<Arc<EventRanks>>>>>,
@@ -128,9 +128,9 @@ pub struct PlayerRankInformation {
     error_sender: mpsc::Sender<String>,
 }
 
-impl PlayerRankInformation {
-    pub fn new(context: egui::Context, error_tx: mpsc::Sender<String>) -> PlayerRankInformation {
-        PlayerRankInformation {
+impl RankAPI {
+    pub fn new(context: egui::Context, error_tx: mpsc::Sender<String>) -> RankAPI {
+        RankAPI {
             ranks: Arc::new(RwLock::new(HashMap::new())),
             context,
             error_sender: error_tx,

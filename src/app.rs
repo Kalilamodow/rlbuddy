@@ -1,4 +1,4 @@
-use crate::ranks::{PlayerRankInformation, Rank};
+use crate::ranks::{Rank, RankAPI};
 use crate::rl_stats_api::{self, PlayerData};
 use eframe::egui;
 use std::sync::mpsc;
@@ -42,7 +42,7 @@ pub struct RankDisplayApp {
     players_receiver: mpsc::Receiver<Vec<PlayerData>>,
     error_receiver: mpsc::Receiver<String>,
     players: Option<Vec<PlayerData>>,
-    player_ranks: PlayerRankInformation,
+    player_ranks: RankAPI,
     current_error: Option<String>,
 }
 
@@ -55,7 +55,7 @@ impl RankDisplayApp {
             players: None,
             players_receiver: player_rx,
             error_receiver: errors_rx,
-            player_ranks: PlayerRankInformation::new(ctx.egui_ctx.clone(), errors_tx.clone()),
+            player_ranks: RankAPI::new(ctx.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
         };
 
