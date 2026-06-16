@@ -41,6 +41,7 @@ pub enum Platform {
     Steam,
     Xbox,
     PlayStation,
+    Switch,
 }
 
 #[derive(Debug)]
@@ -54,6 +55,7 @@ impl FromStr for Platform {
             "Steam" => Ok(Platform::Steam),
             "XboxOne" => Ok(Platform::Xbox),
             "PS4" => Ok(Platform::PlayStation),
+            "Switch" => Ok(Platform::Switch),
             _ => Err(UnknownPlatform),
         }
     }
@@ -69,6 +71,7 @@ impl fmt::Display for Platform {
                 Platform::Steam => "Steam",
                 Platform::PlayStation => "PlayStation",
                 Platform::Xbox => "Xbox",
+                Platform::Switch => "Switch",
             }
         )
     }
@@ -87,7 +90,7 @@ fn parse_stats_api_player(value: StatsApiPlayerData) -> Option<PlayerData> {
         Some(PlayerData {
             name: value.name,
             platform: platform,
-            platform_id: String::from(parts[1]),
+            platform_id: value.id_data,
         })
     } else {
         None

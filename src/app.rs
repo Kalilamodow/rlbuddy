@@ -9,7 +9,8 @@ fn bold_text(text: &str) -> egui::RichText {
 }
 
 pub struct RankDisplayApp {
-    players_receiver: mpsc::Receiver<Result<Vec<PlayerData>, String>>,
+    players_receiver: mpsc::Receiver<Vec<PlayerData>>,
+    error_receiver: mpsc::Receiver<String>,
     players: Option<Vec<PlayerData>>,
     player_ranks: PlayerRankInformation,
     current_error: Option<String>,
@@ -18,17 +19,20 @@ pub struct RankDisplayApp {
 impl RankDisplayApp {
     pub fn new(ctx: &eframe::CreationContext) -> Self {
         let (player_tx, player_rx) = mpsc::channel();
+        let (errors_tx, errors_rx) = mpsc::channel();
+
         let app = RankDisplayApp {
             players: None,
             players_receiver: player_rx,
-            player_ranks: PlayerRankInformation::new(ctx.egui_ctx.clone()),
+            error_receiver: errors_rx,
+            player_ranks: PlayerRankInformation::new(ctx.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
         };
 
         let ctx = ctx.egui_ctx.clone();
         thread::spawn(move || {
             let result = rl_stats_api::connect_to_stats_api(|player_datas| {
-                if let Err(error) = player_tx.send(Ok(player_datas)) {
+                if let Err(error) = player_tx.send(player_datas) {
                     eprintln!("[player_tx] error: {}", error);
                 } else {
                     ctx.request_repaint();
@@ -36,7 +40,7 @@ impl RankDisplayApp {
             });
 
             if let Err(error) = result {
-                player_tx.send(Err(error.to_string())).unwrap();
+                errors_tx.send(error.to_string()).unwrap();
             }
         });
 
@@ -62,15 +66,15 @@ impl RankDisplayApp {
                         ui.label(player.platform.to_string());
 
                         if let Some(ranks) = self.player_ranks.get(&player) {
-                            ui.label(match &ranks.ranked_1s {
+                            ui.label(match ranks.ranked_1s {
                                 Some(txt) => txt,
                                 None => "None",
                             });
-                            ui.label(match &ranks.ranked_2s {
+                            ui.label(match ranks.ranked_2s {
                                 Some(txt) => txt,
                                 None => "None",
                             });
-                            ui.label(match &ranks.ranked_3s {
+                            ui.label(match ranks.ranked_3s {
                                 Some(txt) => txt,
                                 None => "None",
                             });
@@ -91,11 +95,11 @@ impl RankDisplayApp {
 
 impl eframe::App for RankDisplayApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if let Ok(message) = self.players_receiver.try_recv() {
-            match message {
-                Ok(new_players) => self.players = Some(new_players),
-                Err(error) => self.current_error = Some(error),
-            }
+        if let Ok(new_error) = self.error_receiver.try_recv() {
+            self.current_error = Some(new_error);
+        }
+        if let Ok(new_players) = self.players_receiver.try_recv() {
+            self.players = Some(new_players);
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {

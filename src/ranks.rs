@@ -1,16 +1,15 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, mpsc},
     thread,
 };
 
 use eframe::egui;
 use serde::Deserialize;
 
-use crate::rl_stats_api::{Platform, PlayerData};
+use crate::rl_stats_api::PlayerData;
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)\
-AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const API_URL: &str = "https://rocket-league-mmrs.kmdw.dev";
 
 #[repr(u8)]
 enum PlaylistID {
@@ -20,32 +19,70 @@ enum PlaylistID {
     Threes = 13,
 }
 
-#[derive(Deserialize)]
-struct TrackerGGProfileResponseDataSegment {
-    #[serde(rename = "type")]
-    segment_type: String,
-
-    // for other segment types these two can be different
-    // im not deserializing them because its easier to just use bracket indexing
-    attributes: serde_json::Value,
-    stats: serde_json::Value,
+// for the sake of readability, all unused fields are ignored
+#[derive(Deserialize, Debug)]
+struct GetPlayerSkillsResponseSkill {
+    #[serde(rename = "Playlist")]
+    playlist: u8,
+    #[serde(rename = "Tier")]
+    tier: u8,
 }
 
-#[derive(Deserialize)]
-struct TrackerGGProfileResponseData {
-    segments: Vec<TrackerGGProfileResponseDataSegment>,
+#[derive(Deserialize, Debug)]
+struct GetPlayerSkillsResponseData {
+    #[serde(rename = "Skills")]
+    skills: Vec<GetPlayerSkillsResponseSkill>,
 }
 
-#[derive(Deserialize)]
-struct TrackerGGProfileResponse {
-    data: TrackerGGProfileResponseData,
+#[derive(Deserialize, Debug)]
+struct GetPlayerSkillsResponse {
+    skill: GetPlayerSkillsResponseData,
 }
 
 #[derive(Debug, Clone)]
 pub struct EventRanks {
-    pub ranked_1s: Option<String>,
-    pub ranked_2s: Option<String>,
-    pub ranked_3s: Option<String>,
+    pub ranked_1s: Option<&'static str>,
+    pub ranked_2s: Option<&'static str>,
+    pub ranked_3s: Option<&'static str>,
+}
+
+fn tier_to_rank(tier: u8) -> &'static str {
+    match tier {
+        0 => "Unranked",
+        1 => "Bronze 1",
+        2 => "Bronze 2",
+        3 => "Bronze 3",
+        4 => "Silver 1",
+        5 => "Silver 2",
+        6 => "Silver 3",
+        7 => "Gold 1",
+        8 => "Gold 2",
+        9 => "Gold 3",
+        10 => "Platinum 1",
+        11 => "Platinum 2",
+        12 => "Platinum 3",
+        13 => "Diamond 1",
+        14 => "Diamond 2",
+        15 => "Diamond 3",
+        16 => "Champ 1",
+        17 => "Champ 2",
+        18 => "Champ 3",
+        19 => "GC 1",
+        20 => "GC 2",
+        21 => "GC 3",
+        22 => "SSL",
+        _ => unreachable!("invalid tier: {}", tier),
+    }
+}
+
+fn rank_by_playlist(
+    skills: &Vec<GetPlayerSkillsResponseSkill>,
+    playlist: u8,
+) -> Option<&'static str> {
+    skills
+        .iter()
+        .find(|sk| sk.playlist == playlist)
+        .map(|sk| tier_to_rank(sk.tier))
 }
 
 pub struct PlayerRankInformation {
@@ -53,27 +90,15 @@ pub struct PlayerRankInformation {
     // option for whether its loaded yet
     ranks: Arc<RwLock<HashMap<String, Option<Arc<EventRanks>>>>>,
     context: egui::Context,
-}
-
-fn playlist_segment_tier_by_playlist(
-    segments: &mut core::slice::Iter<TrackerGGProfileResponseDataSegment>,
-    playlist_id: u8,
-) -> Option<String> {
-    segments
-        .find(|seg| seg.segment_type == "playlist" && seg.attributes["playlistId"] == playlist_id)
-        .map(|playlist| {
-            playlist.stats["tier"]["metadata"]["name"]
-                .as_str()
-                .unwrap()
-                .to_string()
-        })
+    error_sender: mpsc::Sender<String>,
 }
 
 impl PlayerRankInformation {
-    pub fn new(context: egui::Context) -> PlayerRankInformation {
+    pub fn new(context: egui::Context, error_tx: mpsc::Sender<String>) -> PlayerRankInformation {
         PlayerRankInformation {
             ranks: Arc::new(RwLock::new(HashMap::new())),
             context,
+            error_sender: error_tx,
         }
     }
 
@@ -86,42 +111,35 @@ impl PlayerRankInformation {
         }
 
         let url = format!(
-            "https://api.tracker.gg/api/v2/rocket-league/standard/profile/{}/{}",
-            match player.platform {
-                Platform::Epic => "epic",
-                Platform::Steam => "steam",
-                Platform::Xbox => "xbl",
-                Platform::PlayStation => "psn",
-            },
-            match player.platform {
-                Platform::Epic | Platform::Xbox | Platform::PlayStation =>
-                    urlencoding::encode(&player.name).into_owned(),
-                Platform::Steam => player.platform_id.clone(),
-            }
+            "{}/skills/getPlayerSkill/{}",
+            API_URL,
+            urlencoding::encode(&player.platform_id)
         );
 
         let context = self.context.clone();
+        let error_tx = self.error_sender.clone();
         thread::spawn(move || {
             let mut current = current.write().unwrap();
             current.insert(player_key.clone(), None);
 
-            let response = ureq::get(url)
-                .header("User-Agent", USER_AGENT)
-                .call()
-                .unwrap()
+            let Ok(mut response) = ureq::get(url).call() else {
+                error_tx
+                    .send("Could not communicate with rank server".to_string())
+                    .unwrap();
+                return;
+            };
+
+            let response = response
                 .body_mut()
-                .read_json::<TrackerGGProfileResponse>()
+                .read_json::<GetPlayerSkillsResponse>()
                 .unwrap();
 
-            let mut segments = response.data.segments.iter();
+            println!("response: {:#?}", response.skill.skills);
 
             let ranks = EventRanks {
-                ranked_1s: playlist_segment_tier_by_playlist(&mut segments, PlaylistID::Ones as u8),
-                ranked_2s: playlist_segment_tier_by_playlist(&mut segments, PlaylistID::Twos as u8),
-                ranked_3s: playlist_segment_tier_by_playlist(
-                    &mut segments,
-                    PlaylistID::Threes as u8,
-                ),
+                ranked_1s: rank_by_playlist(&response.skill.skills, PlaylistID::Ones as u8),
+                ranked_2s: rank_by_playlist(&response.skill.skills, PlaylistID::Twos as u8),
+                ranked_3s: rank_by_playlist(&response.skill.skills, PlaylistID::Threes as u8),
             };
 
             current.insert(player_key.clone(), Some(Arc::new(ranks)));
