@@ -11,8 +11,9 @@ use crate::rl_stats_api::PlayerData;
 
 const API_URL: &str = "https://rocket-league-mmrs.kmdw.dev";
 
+#[derive(Clone)]
 #[repr(u8)]
-enum PlaylistID {
+enum Playlist {
     Ones = 10,
     Twos = 11,
     // idk why its not 12
@@ -51,7 +52,7 @@ struct GetPlayerSkillsResponse {
     skill: GetPlayerSkillsResponseData,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
 #[allow(dead_code)] // since its constructed with mem::transmute
 pub enum Rank {
@@ -114,6 +115,7 @@ impl Rank {
 pub struct PlayerSkillInformation {
     pub rank: Rank,
     pub mmr: i16,
+    pub rank_is_estimate: bool,
 }
 
 #[derive(Debug)]
@@ -131,16 +133,57 @@ fn tier_to_rank(tier: u8) -> Rank {
     }
 }
 
+/// uses ftp season 23 1v1
+fn mmr_rank_estimate(mmr: &i16) -> Rank {
+    match mmr {
+        ..=156 => Rank::Bronze1,
+        ..=213 => Rank::Bronze2,
+        ..=274 => Rank::Bronze3,
+        ..=334 => Rank::Silver1,
+        ..=394 => Rank::Silver2,
+        ..=454 => Rank::Silver3,
+        ..=514 => Rank::Gold1,
+        ..=574 => Rank::Gold2,
+        ..=634 => Rank::Gold3,
+        ..=694 => Rank::Plat1,
+        ..=753 => Rank::Plat2,
+        ..=808 => Rank::Plat3,
+        ..=874 => Rank::Diamond1,
+        ..=930 => Rank::Diamond2,
+        ..=994 => Rank::Diamond3,
+        ..=1052 => Rank::Champ1,
+        ..=1114 => Rank::Champ2,
+        ..=1170 => Rank::Champ3,
+        ..=1232 => Rank::GC1,
+        ..=1295 => Rank::GC2,
+        ..=1351 => Rank::GC3,
+        _ => Rank::SSL,
+    }
+}
+
 fn skill_by_playlist(
     skills: &Vec<GetPlayerSkillsResponseSkill>,
-    playlist: u8,
+    playlist: Playlist,
 ) -> Option<PlayerSkillInformation> {
+    let playlist_id = playlist as u8;
     skills
         .iter()
-        .find(|sk| sk.playlist == playlist)
+        .find(|sk| sk.playlist == playlist_id)
         .map(|sk| PlayerSkillInformation {
             rank: tier_to_rank(sk.tier),
             mmr: mu_to_real_mmr(sk.mu),
+            rank_is_estimate: false,
+        })
+        .map(|sk| {
+            if sk.rank == Rank::Unranked {
+                PlayerSkillInformation {
+                    rank: mmr_rank_estimate(&sk.mmr),
+                    mmr: sk.mmr,
+                    rank_is_estimate: true,
+                }
+            } else {
+                sk
+            }
         })
 }
 
@@ -194,9 +237,9 @@ impl RankAPI {
                 .unwrap();
 
             let ranks = EventRanks {
-                ranked_1s: skill_by_playlist(&response.skill.skills, PlaylistID::Ones as u8),
-                ranked_2s: skill_by_playlist(&response.skill.skills, PlaylistID::Twos as u8),
-                ranked_3s: skill_by_playlist(&response.skill.skills, PlaylistID::Threes as u8),
+                ranked_1s: skill_by_playlist(&response.skill.skills, Playlist::Ones),
+                ranked_2s: skill_by_playlist(&response.skill.skills, Playlist::Twos),
+                ranked_3s: skill_by_playlist(&response.skill.skills, Playlist::Threes),
             };
 
             current.insert(player_key.clone(), Some(Arc::new(ranks)));

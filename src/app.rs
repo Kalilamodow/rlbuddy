@@ -105,11 +105,39 @@ impl RankDisplayApp {
 
                             for skill in modes {
                                 if let Some(skill) = skill {
-                                    ui.image(skill.rank.to_image()).on_hover_text(format!(
-                                        "{}\nMMR: {}",
-                                        skill.rank.as_str(),
-                                        skill.mmr
-                                    ));
+                                    let response =
+                                        ui.image(skill.rank.to_image()).on_hover_text(format!(
+                                            "{}\nMMR: {}{}",
+                                            skill.rank.as_str(),
+                                            skill.mmr,
+                                            skill
+                                                .rank_is_estimate
+                                                .then(|| "\nRank estimate based on MMR")
+                                                .unwrap_or_default()
+                                        ));
+
+                                    if skill.rank_is_estimate {
+                                        // warning badge
+                                        let rect = response.rect;
+                                        let badge_center = egui::Pos2::new(
+                                            rect.right() - 4.0,
+                                            rect.bottom() - 4.0,
+                                        );
+
+                                        ui.painter().circle_filled(
+                                            badge_center,
+                                            4.0,
+                                            egui::Color32::RED,
+                                        );
+
+                                        ui.painter().text(
+                                            badge_center,
+                                            egui::Align2::CENTER_CENTER,
+                                            "!",
+                                            egui::FontId::proportional(8.0),
+                                            egui::Color32::WHITE,
+                                        );
+                                    }
                                 } else {
                                     ui.image(Rank::Unranked.to_image())
                                         .on_hover_text("No data for gamemode");
