@@ -39,46 +39,81 @@ struct GetPlayerSkillsResponse {
     skill: GetPlayerSkillsResponseData,
 }
 
-#[derive(Debug, Clone)]
-pub struct EventRanks {
-    pub ranked_1s: Option<&'static str>,
-    pub ranked_2s: Option<&'static str>,
-    pub ranked_3s: Option<&'static str>,
+#[derive(Debug)]
+#[repr(u8)]
+#[allow(dead_code)] // since its constructed with mem::transmute
+pub enum Rank {
+    Unranked,
+    Bronze1,
+    Bronze2,
+    Bronze3,
+    Silver1,
+    Silver2,
+    Silver3,
+    Gold1,
+    Gold2,
+    Gold3,
+    Plat1,
+    Plat2,
+    Plat3,
+    Diamond1,
+    Diamond2,
+    Diamond3,
+    Champ1,
+    Champ2,
+    Champ3,
+    GC1,
+    GC2,
+    GC3,
+    SSL,
 }
 
-fn tier_to_rank(tier: u8) -> &'static str {
+impl Rank {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Rank::Unranked => "Unranked",
+            Rank::Bronze1 => "Bronze I",
+            Rank::Bronze2 => "Bronze II",
+            Rank::Bronze3 => "Bronze III",
+            Rank::Silver1 => "Silver I",
+            Rank::Silver2 => "Silver II",
+            Rank::Silver3 => "Silver III",
+            Rank::Gold1 => "Gold I",
+            Rank::Gold2 => "Gold II",
+            Rank::Gold3 => "Gold III",
+            Rank::Plat1 => "Platinum I",
+            Rank::Plat2 => "Platinum II",
+            Rank::Plat3 => "Platinum III",
+            Rank::Diamond1 => "Diamond I",
+            Rank::Diamond2 => "Diamond II",
+            Rank::Diamond3 => "Diamond III",
+            Rank::Champ1 => "Champion I",
+            Rank::Champ2 => "Champion II",
+            Rank::Champ3 => "Champion III",
+            Rank::GC1 => "Grand Champion I",
+            Rank::GC2 => "Grand Champion II",
+            Rank::GC3 => "Grand Champion III",
+            Rank::SSL => "Supersonic Legend",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EventRanks {
+    pub ranked_1s: Option<Rank>,
+    pub ranked_2s: Option<Rank>,
+    pub ranked_3s: Option<Rank>,
+}
+
+fn tier_to_rank(tier: u8) -> Rank {
     match tier {
-        0 => "Unranked",
-        1 => "Bronze 1",
-        2 => "Bronze 2",
-        3 => "Bronze 3",
-        4 => "Silver 1",
-        5 => "Silver 2",
-        6 => "Silver 3",
-        7 => "Gold 1",
-        8 => "Gold 2",
-        9 => "Gold 3",
-        10 => "Platinum 1",
-        11 => "Platinum 2",
-        12 => "Platinum 3",
-        13 => "Diamond 1",
-        14 => "Diamond 2",
-        15 => "Diamond 3",
-        16 => "Champ 1",
-        17 => "Champ 2",
-        18 => "Champ 3",
-        19 => "GC 1",
-        20 => "GC 2",
-        21 => "GC 3",
-        22 => "SSL",
+        // rust should have a non unsafe way to do it automatically tbh
+        0..=22 => unsafe { std::mem::transmute::<u8, Rank>(tier) },
         _ => unreachable!("invalid tier: {}", tier),
     }
 }
 
-fn rank_by_playlist(
-    skills: &Vec<GetPlayerSkillsResponseSkill>,
-    playlist: u8,
-) -> Option<&'static str> {
+fn rank_by_playlist(skills: &Vec<GetPlayerSkillsResponseSkill>, playlist: u8) -> Option<Rank> {
     skills
         .iter()
         .find(|sk| sk.playlist == playlist)
@@ -133,8 +168,6 @@ impl PlayerRankInformation {
                 .body_mut()
                 .read_json::<GetPlayerSkillsResponse>()
                 .unwrap();
-
-            println!("response: {:#?}", response.skill.skills);
 
             let ranks = EventRanks {
                 ranked_1s: rank_by_playlist(&response.skill.skills, PlaylistID::Ones as u8),

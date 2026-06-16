@@ -1,4 +1,4 @@
-use crate::ranks::PlayerRankInformation;
+use crate::ranks::{PlayerRankInformation, Rank};
 use crate::rl_stats_api::{self, PlayerData};
 use eframe::egui;
 use std::sync::mpsc;
@@ -6,6 +6,36 @@ use std::thread;
 
 fn bold_text(text: &str) -> egui::RichText {
     egui::RichText::new(text).strong()
+}
+
+impl Rank {
+    pub fn to_image(&self) -> egui::ImageSource<'static> {
+        match self {
+            Rank::Unranked => egui::include_image!("../assets/Unranked_icon.png"),
+            Rank::Bronze1 => egui::include_image!("../assets/Bronze1_rank_icon.png"),
+            Rank::Bronze2 => egui::include_image!("../assets/Bronze2_rank_icon.png"),
+            Rank::Bronze3 => egui::include_image!("../assets/Bronze3_rank_icon.png"),
+            Rank::Silver1 => egui::include_image!("../assets/Silver1_rank_icon.png"),
+            Rank::Silver2 => egui::include_image!("../assets/Silver2_rank_icon.png"),
+            Rank::Silver3 => egui::include_image!("../assets/Silver3_rank_icon.png"),
+            Rank::Gold1 => egui::include_image!("../assets/Gold1_rank_icon.png"),
+            Rank::Gold2 => egui::include_image!("../assets/Gold2_rank_icon.png"),
+            Rank::Gold3 => egui::include_image!("../assets/Gold3_rank_icon.png"),
+            Rank::Plat1 => egui::include_image!("../assets/Platinum1_rank_icon.png"),
+            Rank::Plat2 => egui::include_image!("../assets/Platinum2_rank_icon.png"),
+            Rank::Plat3 => egui::include_image!("../assets/Platinum3_rank_icon.png"),
+            Rank::Diamond1 => egui::include_image!("../assets/Diamond1_rank_icon.png"),
+            Rank::Diamond2 => egui::include_image!("../assets/Diamond2_rank_icon.png"),
+            Rank::Diamond3 => egui::include_image!("../assets/Diamond3_rank_icon.png"),
+            Rank::Champ1 => egui::include_image!("../assets/Champion1_rank_icon.png"),
+            Rank::Champ2 => egui::include_image!("../assets/Champion2_rank_icon.png"),
+            Rank::Champ3 => egui::include_image!("../assets/Champion3_rank_icon.png"),
+            Rank::GC1 => egui::include_image!("../assets/Grand_Champion1_rank_icon.png"),
+            Rank::GC2 => egui::include_image!("../assets/Grand_Champion2_rank_icon.png"),
+            Rank::GC3 => egui::include_image!("../assets/Grand_Champion3_rank_icon.png"),
+            Rank::SSL => egui::include_image!("../assets/Supersonic_Legend_rank_icon.png"),
+        }
+    }
 }
 
 pub struct RankDisplayApp {
@@ -53,12 +83,13 @@ impl RankDisplayApp {
                 .num_columns(5)
                 .spacing([12.0, 12.0])
                 .striped(true)
+                .min_row_height(32.0)
                 .show(ui, |ui| {
                     ui.label(bold_text("Name"));
                     ui.label(bold_text("Platform"));
-                    ui.label(bold_text("Ranked 1s"));
-                    ui.label(bold_text("Ranked 2s"));
-                    ui.label(bold_text("Ranked 3s"));
+                    ui.label(bold_text("1s"));
+                    ui.label(bold_text("2s"));
+                    ui.label(bold_text("3s"));
                     ui.end_row();
 
                     for player in players {
@@ -66,18 +97,15 @@ impl RankDisplayApp {
                         ui.label(player.platform.to_string());
 
                         if let Some(ranks) = self.player_ranks.get(&player) {
-                            ui.label(match ranks.ranked_1s {
-                                Some(txt) => txt,
-                                None => "None",
-                            });
-                            ui.label(match ranks.ranked_2s {
-                                Some(txt) => txt,
-                                None => "None",
-                            });
-                            ui.label(match ranks.ranked_3s {
-                                Some(txt) => txt,
-                                None => "None",
-                            });
+                            let display = [&ranks.ranked_1s, &ranks.ranked_2s, &ranks.ranked_3s];
+
+                            for rank in display {
+                                if let Some(rank) = rank {
+                                    ui.image(rank.to_image()).on_hover_text(rank.as_str());
+                                } else {
+                                    ui.label("Error");
+                                }
+                            }
                         } else {
                             ui.label("Loading...");
                             ui.label("Loading...");
