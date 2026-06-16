@@ -96,12 +96,20 @@ impl RankDisplayApp {
                         ui.label(&player.name);
                         ui.label(player.platform.to_string());
 
-                        if let Some(ranks) = self.player_ranks.get(&player) {
-                            let display = [&ranks.ranked_1s, &ranks.ranked_2s, &ranks.ranked_3s];
+                        if let Some(player_skills) = self.player_ranks.get(&player) {
+                            let modes = [
+                                &player_skills.ranked_1s,
+                                &player_skills.ranked_2s,
+                                &player_skills.ranked_3s,
+                            ];
 
-                            for rank in display {
-                                if let Some(rank) = rank {
-                                    ui.image(rank.to_image()).on_hover_text(rank.as_str());
+                            for skill in modes {
+                                if let Some(skill) = skill {
+                                    ui.image(skill.rank.to_image()).on_hover_text(format!(
+                                        "{}\nMMR: {}",
+                                        skill.rank.as_str(),
+                                        skill.mmr
+                                    ));
                                 } else {
                                     ui.image(Rank::Unranked.to_image())
                                         .on_hover_text("No data for gamemode");

@@ -19,6 +19,15 @@ enum PlaylistID {
     Threes = 13,
 }
 
+// so basically the api doesnt give us actual mmr values??? i dont really know
+// whats going on there. it gives us an MMR field but its way off. there is an
+// approximate linear equation to go from the Mu field to actual mmr, which is
+// done here
+fn mu_to_real_mmr(mu: f64) -> i16 {
+    let real = mu * 20.0 + 100.0;
+    real.ceil() as i16
+}
+
 // for the sake of readability, all unused fields are ignored
 #[derive(Deserialize, Debug)]
 struct GetPlayerSkillsResponseSkill {
@@ -26,6 +35,9 @@ struct GetPlayerSkillsResponseSkill {
     playlist: u8,
     #[serde(rename = "Tier")]
     tier: u8,
+    // see comment in fn mu_to_real_mmr
+    #[serde(rename = "Mu")]
+    mu: f64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -99,10 +111,16 @@ impl Rank {
 }
 
 #[derive(Debug)]
+pub struct PlayerSkillInformation {
+    pub rank: Rank,
+    pub mmr: i16,
+}
+
+#[derive(Debug)]
 pub struct EventRanks {
-    pub ranked_1s: Option<Rank>,
-    pub ranked_2s: Option<Rank>,
-    pub ranked_3s: Option<Rank>,
+    pub ranked_1s: Option<PlayerSkillInformation>,
+    pub ranked_2s: Option<PlayerSkillInformation>,
+    pub ranked_3s: Option<PlayerSkillInformation>,
 }
 
 fn tier_to_rank(tier: u8) -> Rank {
@@ -113,11 +131,17 @@ fn tier_to_rank(tier: u8) -> Rank {
     }
 }
 
-fn rank_by_playlist(skills: &Vec<GetPlayerSkillsResponseSkill>, playlist: u8) -> Option<Rank> {
+fn skill_by_playlist(
+    skills: &Vec<GetPlayerSkillsResponseSkill>,
+    playlist: u8,
+) -> Option<PlayerSkillInformation> {
     skills
         .iter()
         .find(|sk| sk.playlist == playlist)
-        .map(|sk| tier_to_rank(sk.tier))
+        .map(|sk| PlayerSkillInformation {
+            rank: tier_to_rank(sk.tier),
+            mmr: mu_to_real_mmr(sk.mu),
+        })
 }
 
 pub struct RankAPI {
@@ -170,9 +194,9 @@ impl RankAPI {
                 .unwrap();
 
             let ranks = EventRanks {
-                ranked_1s: rank_by_playlist(&response.skill.skills, PlaylistID::Ones as u8),
-                ranked_2s: rank_by_playlist(&response.skill.skills, PlaylistID::Twos as u8),
-                ranked_3s: rank_by_playlist(&response.skill.skills, PlaylistID::Threes as u8),
+                ranked_1s: skill_by_playlist(&response.skill.skills, PlaylistID::Ones as u8),
+                ranked_2s: skill_by_playlist(&response.skill.skills, PlaylistID::Twos as u8),
+                ranked_3s: skill_by_playlist(&response.skill.skills, PlaylistID::Threes as u8),
             };
 
             current.insert(player_key.clone(), Some(Arc::new(ranks)));
