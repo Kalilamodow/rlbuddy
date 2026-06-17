@@ -20,11 +20,10 @@ enum Playlist {
     Threes = 13,
 }
 
-// so basically the api doesnt give us actual mmr values??? i dont really know
-// whats going on there. it gives us an MMR field but its way off. there is an
-// approximate linear equation to go from the Mu field to actual mmr, which is
-// done here
-fn mu_to_real_mmr(mu: f64) -> i16 {
+// Skill rating = Mu * 20 + 100
+// https://www.reddit.com/r/RocketLeague/comments/juuzkn/comment/gchywcr/?context=3
+// note: throughout the code we refer to skill rating by its informal name, mmr
+fn mu_to_skill_rating(mu: f64) -> i16 {
     let real = mu * 20.0 + 100.0;
     real.ceil() as i16
 }
@@ -36,7 +35,7 @@ struct GetPlayerSkillsResponseSkill {
     playlist: u8,
     #[serde(rename = "Tier")]
     tier: u8,
-    // see comment in fn mu_to_real_mmr
+    // see comment in fn mu_to_skill_rating
     #[serde(rename = "Mu")]
     mu: f64,
 }
@@ -181,7 +180,7 @@ fn skill_by_playlist(
         .find(|sk| sk.playlist == playlist_id)
         .map(|sk| PlayerSkillInformation {
             rank: tier_to_rank(sk.tier),
-            mmr: mu_to_real_mmr(sk.mu),
+            mmr: mu_to_skill_rating(sk.mu),
             rank_is_estimate: false,
         })
         .map(|sk| {
