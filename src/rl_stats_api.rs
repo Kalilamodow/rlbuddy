@@ -127,15 +127,22 @@ impl fmt::Display for StatsApiError {
     }
 }
 
-pub fn connect_to_stats_api<F: Fn(Vec<PlayerData>)>(
-    on_player_update: F,
-) -> Result<(), StatsApiError> {
+pub enum RLEvent {
+    SetPlayerList(Vec<PlayerData>),
+    MatchStart,
+}
+
+pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiError> {
     let mut read_buffer = vec![0u8; 4096];
 
     let mut tcp = or_error(
         TcpStream::connect(&"127.0.0.1:49123".parse::<SocketAddr>().unwrap()),
         StatsApiError::CouldNotConnect,
     )?;
+
+    // MatchInitialized doesnt fire in private matches for some reason
+    // so listen for match created then the first countdown is the "game start"
+    let mut match_created_event_happened = false;
 
     loop {
         let n_bytes = match tcp.read(&mut read_buffer) {
@@ -158,16 +165,28 @@ pub fn connect_to_stats_api<F: Fn(Vec<PlayerData>)>(
             continue;
         };
 
-        if event.event == "UpdateState" {
-            let data: UpdateStateEventData = serde_json::from_str(&event.data)
-                .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
-            on_player_update(
-                data.players
-                    .into_iter()
-                    .map(parse_stats_api_player)
-                    .filter_map(std::convert::identity)
-                    .collect(),
-            );
-        };
+        match event.event.as_str() {
+            "UpdateState" => {
+                let data: UpdateStateEventData = serde_json::from_str(&event.data)
+                    .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
+                on_event(RLEvent::SetPlayerList(
+                    data.players
+                        .into_iter()
+                        .map(parse_stats_api_player)
+                        .filter_map(std::convert::identity)
+                        .collect(),
+                ));
+            }
+            "MatchCreated" => {
+                match_created_event_happened = true;
+            }
+            "CountdownBegin" => {
+                if match_created_event_happened {
+                    match_created_event_happened = false;
+                    on_event(RLEvent::MatchStart);
+                }
+            }
+            _ => {}
+        }
     }
 }
