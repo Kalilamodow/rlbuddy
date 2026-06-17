@@ -35,13 +35,14 @@ struct UpdateStateEventData {
     players: Vec<StatsApiPlayerData>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Platform {
     Epic,
     Steam,
     Xbox,
     PlayStation,
     Switch,
+    Bot,
 }
 
 #[derive(Debug)]
@@ -56,6 +57,7 @@ impl FromStr for Platform {
             "XboxOne" => Ok(Platform::Xbox),
             "PS4" => Ok(Platform::PlayStation),
             "Switch" => Ok(Platform::Switch),
+            "Unknown" => Ok(Platform::Bot),
             _ => Err(UnknownPlatform),
         }
     }
@@ -72,6 +74,7 @@ impl fmt::Display for Platform {
                 Platform::PlayStation => "PlayStation",
                 Platform::Xbox => "Xbox",
                 Platform::Switch => "Switch",
+                Platform::Bot => "Bot",
             }
         )
     }

@@ -118,6 +118,16 @@ pub struct PlayerSkillInformation {
     pub rank_is_estimate: bool,
 }
 
+impl PlayerSkillInformation {
+    pub fn for_bot() -> PlayerSkillInformation {
+        PlayerSkillInformation {
+            rank: Rank::Unranked,
+            mmr: 0,
+            rank_is_estimate: false,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EventRanks {
     pub ranked_1s: Option<PlayerSkillInformation>,
@@ -212,16 +222,31 @@ impl RankAPI {
             return existing.clone();
         }
 
+        let context = self.context.clone();
+        let error_tx = self.error_sender.clone();
+
         let url = format!(
             "{}/skills/getPlayerSkill/{}",
             API_URL,
             urlencoding::encode(&player.platform_id)
         );
+        let player_platform = player.platform;
 
-        let context = self.context.clone();
-        let error_tx = self.error_sender.clone();
         thread::spawn(move || {
             let mut current = current.write().unwrap();
+            if player_platform == crate::rl_stats_api::Platform::Bot {
+                current.insert(
+                    player_key,
+                    Some(Arc::new(EventRanks {
+                        ranked_1s: Some(PlayerSkillInformation::for_bot()),
+                        ranked_2s: Some(PlayerSkillInformation::for_bot()),
+                        ranked_3s: Some(PlayerSkillInformation::for_bot()),
+                    })),
+                );
+                context.request_repaint();
+                return;
+            }
+
             current.insert(player_key.clone(), None);
 
             let Ok(mut response) = ureq::get(url).call() else {

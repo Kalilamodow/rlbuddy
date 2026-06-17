@@ -1,5 +1,5 @@
 use crate::ranks::{Rank, RankAPI};
-use crate::rl_stats_api::{self, PlayerData};
+use crate::rl_stats_api::{self, Platform, PlayerData};
 use eframe::egui;
 use std::sync::mpsc;
 use std::thread;
@@ -96,7 +96,11 @@ impl RankDisplayApp {
                         ui.label(&player.name);
                         ui.label(player.platform.to_string());
 
-                        if let Some(player_skills) = self.player_ranks.get(&player) {
+                        if player.platform == Platform::Bot {
+                            ui.label("-");
+                            ui.label("-");
+                            ui.label("-");
+                        } else if let Some(player_skills) = self.player_ranks.get(&player) {
                             let modes = [
                                 &player_skills.ranked_1s,
                                 &player_skills.ranked_2s,
