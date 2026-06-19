@@ -6,10 +6,6 @@ use std::{
     str::FromStr,
 };
 
-fn or_error<R, OldE, NewE>(r: Result<R, OldE>, e: NewE) -> Result<R, NewE> {
-    r.map_err(|_| e)
-}
-
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
     #[serde(rename = "Event")]
@@ -132,13 +128,21 @@ pub enum RLEvent {
     MatchStart,
 }
 
+// cant use connect_timeout bc it just errors instead of waiting when the
+// socket isnt open in the first place
+fn connect_forever() -> TcpStream {
+    loop {
+        match TcpStream::connect(&"127.0.0.1:49123".parse::<SocketAddr>().unwrap()) {
+            Ok(tcp) => return tcp,
+            Err(_) => continue,
+        }
+    }
+}
+
 pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiError> {
     let mut read_buffer = vec![0u8; 4096];
 
-    let mut tcp = or_error(
-        TcpStream::connect(&"127.0.0.1:49123".parse::<SocketAddr>().unwrap()),
-        StatsApiError::CouldNotConnect,
-    )?;
+    let mut tcp = connect_forever();
     on_event(RLEvent::SetPlayerList(Vec::new()));
 
     // MatchInitialized doesnt fire in private matches for some reason
