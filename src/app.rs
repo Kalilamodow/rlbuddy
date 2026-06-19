@@ -109,6 +109,11 @@ impl RankDisplayApp {
             return;
         };
 
+        if players.len() <= 0 {
+            ui.label("No players");
+            return;
+        }
+
         egui::Grid::new("player list")
             .num_columns(5)
             .spacing([12.0, 12.0])

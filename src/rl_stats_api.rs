@@ -139,6 +139,7 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
         TcpStream::connect(&"127.0.0.1:49123".parse::<SocketAddr>().unwrap()),
         StatsApiError::CouldNotConnect,
     )?;
+    on_event(RLEvent::SetPlayerList(Vec::new()));
 
     // MatchInitialized doesnt fire in private matches for some reason
     // so listen for match created then the first countdown is the "game start"
