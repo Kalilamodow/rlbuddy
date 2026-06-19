@@ -42,18 +42,26 @@ impl Rank {
 pub struct RankDisplayApp {
     players_receiver: mpsc::Receiver<Vec<PlayerData>>,
     error_receiver: mpsc::Receiver<String>,
-    is_overlay_receiver: mpsc::Receiver<bool>,
     players: Option<Vec<PlayerData>>,
     player_ranks: RankAPI,
     current_error: Option<String>,
 }
 
-fn schedule_overlay_flyover(tx: mpsc::Sender<bool>, ctx: egui::Context) {
-    tx.send(true).unwrap();
-    ctx.request_repaint();
+fn schedule_overlay_flyover(ctx: egui::Context) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+        egui::WindowLevel::AlwaysOnTop,
+    ));
+
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(3));
-        tx.send(false).unwrap();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::Normal,
+        ));
         ctx.request_repaint();
     });
 }
@@ -61,14 +69,12 @@ fn schedule_overlay_flyover(tx: mpsc::Sender<bool>, ctx: egui::Context) {
 impl RankDisplayApp {
     pub fn new(ctx: &eframe::CreationContext) -> Self {
         let (player_tx, player_rx) = mpsc::channel();
-        let (overlay_tx, overlay_rx) = mpsc::channel();
         let (errors_tx, errors_rx) = mpsc::channel();
 
         let app = RankDisplayApp {
             players: None,
             players_receiver: player_rx,
             error_receiver: errors_rx,
-            is_overlay_receiver: overlay_rx,
             player_ranks: RankAPI::new(ctx.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
         };
@@ -80,7 +86,7 @@ impl RankDisplayApp {
                     player_tx.send(players).unwrap();
                     ctx.request_repaint();
                 }
-                RLEvent::MatchStart => schedule_overlay_flyover(overlay_tx.clone(), ctx.clone()),
+                RLEvent::MatchStart => schedule_overlay_flyover(ctx.clone()),
             });
 
             if let Err(error) = result {
@@ -183,25 +189,6 @@ impl eframe::App for RankDisplayApp {
         }
         if let Ok(new_players) = self.players_receiver.try_recv() {
             self.players = Some(new_players);
-        }
-
-        if let Ok(should_be_overlay) = self.is_overlay_receiver.try_recv() {
-            let ctx = ui.ctx();
-
-            if should_be_overlay {
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-                    egui::WindowLevel::AlwaysOnTop,
-                ));
-            } else {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-                    egui::WindowLevel::Normal,
-                ));
-            }
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
