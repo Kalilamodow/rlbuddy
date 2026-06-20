@@ -16,13 +16,12 @@ struct StatsApiEvent {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct StatsApiPlayerData {
-    #[serde(rename = "Name")]
     name: String,
     /// "Platform identifier in the format Platform|Uid|Splitscreen (e.g. "Steam|123|0", "Epic|456|0")."
-    #[serde(rename = "PrimaryId")]
-    id_data: String,
-    // theres other stuff but we can just ignore it
+    primary_id: String,
+    team_num: u8, // theres other stuff but we can just ignore it
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,20 +75,42 @@ impl fmt::Display for Platform {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum Team {
+    Blue,
+    Orange,
+}
+
+impl From<u8> for Team {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Team::Blue,
+            1 => Team::Orange,
+            _ => unreachable!("invalid team {}", value),
+        }
+    }
+}
+
 pub struct PlayerData {
     pub name: String,
     pub platform: Platform,
     pub platform_id: String,
+    pub team: Team,
+    pub is_self: bool,
 }
 
-fn parse_stats_api_player(value: StatsApiPlayerData) -> Option<PlayerData> {
-    let parts: Vec<&str> = value.id_data.split("|").collect();
+fn parse_stats_api_player(data: (usize, StatsApiPlayerData)) -> Option<PlayerData> {
+    let (index, value) = data;
+    let parts: Vec<&str> = value.primary_id.split("|").collect();
 
     if let Ok(platform) = Platform::from_str(parts[0]) {
         Some(PlayerData {
             name: value.name,
             platform,
-            platform_id: value.id_data,
+            platform_id: value.primary_id,
+            team: value.team_num.into(),
+            is_self: index == 0,
         })
     } else {
         None
@@ -177,6 +198,7 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
                 on_event(RLEvent::SetPlayerList(
                     data.players
                         .into_iter()
+                        .enumerate()
                         .filter_map(parse_stats_api_player)
                         .collect(),
                 ));

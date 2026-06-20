@@ -1,5 +1,5 @@
 use crate::ranks::{Rank, RankAPI};
-use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent};
+use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
 use eframe::egui;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
@@ -80,8 +80,17 @@ impl RankDisplayApp {
         let ctx = ctx.egui_ctx.clone();
         thread::spawn(move || {
             let result = rl_stats_api::connect_to_stats_api(|event| match event {
-                RLEvent::SetPlayerList(new_players) => {
+                RLEvent::SetPlayerList(mut new_players) => {
                     if let Ok(mut players) = players.lock() {
+                        // group by team
+                        let our_team = new_players
+                            .iter()
+                            .find(|p| p.is_self)
+                            .map(|p| p.team)
+                            .unwrap_or(Team::Blue);
+                        // != bc false comes first
+                        new_players.sort_by_key(|p| p.team != our_team);
+
                         *players = Some(new_players);
                         ctx.request_repaint();
                     }
@@ -127,7 +136,25 @@ impl RankDisplayApp {
                 ui.end_row();
 
                 for player in players {
-                    ui.label(&player.name);
+                    ui.horizontal(|ui| {
+                        let ui_rect = ui.max_rect();
+                        ui.painter().rect_filled(
+                            egui::Rect {
+                                // ui_rect y's for the label basically so it doesnt cover the whole row
+                                min: egui::Pos2::new(ui_rect.min.x + 1.0, ui_rect.min.y - 8.0),
+                                max: egui::Pos2::new(ui_rect.min.x + 3.0, ui_rect.max.y + 8.0),
+                            },
+                            2.0,
+                            match player.team {
+                                Team::Blue => egui::Color32::from_rgb(0, 64, 255),
+                                Team::Orange => egui::Color32::from_rgb(255, 128, 0),
+                            },
+                        );
+
+                        ui.add_space(9.0);
+                        ui.label(&player.name);
+                    });
+
                     ui.label(player.platform.to_string());
 
                     if player.platform == Platform::Bot {
