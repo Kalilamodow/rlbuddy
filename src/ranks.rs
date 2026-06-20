@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock, mpsc},
+    sync::{mpsc, Arc, RwLock},
     thread,
 };
 
@@ -196,6 +196,19 @@ fn skill_by_playlist(
         })
 }
 
+fn get_with_retries<const RETRIES: u8>(
+    url: &String,
+) -> Result<ureq::http::Response<ureq::Body>, ()> {
+    for _ in 0..RETRIES {
+        match ureq::get(url).call() {
+            Ok(resp) => return Ok(resp),
+            Err(_) => continue,
+        }
+    }
+
+    Err(())
+}
+
 pub struct RankAPI {
     // key is stringified PlayerData
     // option for whether its loaded yet
@@ -248,7 +261,7 @@ impl RankAPI {
 
             current.insert(player_key.clone(), None);
 
-            let Ok(mut response) = ureq::get(url).call() else {
+            let Ok(mut response) = get_with_retries::<3>(&url) else {
                 error_tx
                     .send("Could not communicate with rank server".to_string())
                     .unwrap();
