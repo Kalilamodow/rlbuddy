@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{mpsc, Arc, RwLock},
+    sync::{Arc, RwLock, mpsc},
     thread,
 };
 
@@ -245,21 +245,24 @@ impl RankAPI {
         let player_platform = player.platform;
 
         thread::spawn(move || {
-            let mut current = current.write().unwrap();
-            if player_platform == crate::rl_stats_api::Platform::Bot {
-                current.insert(
-                    player_key,
-                    Some(Arc::new(EventRanks {
-                        ranked_1s: Some(PlayerSkillInformation::for_bot()),
-                        ranked_2s: Some(PlayerSkillInformation::for_bot()),
-                        ranked_3s: Some(PlayerSkillInformation::for_bot()),
-                    })),
-                );
-                context.request_repaint();
-                return;
-            }
+            // drop the lock before making the http request
+            {
+                let mut current = current.write().unwrap();
+                if player_platform == crate::rl_stats_api::Platform::Bot {
+                    current.insert(
+                        player_key,
+                        Some(Arc::new(EventRanks {
+                            ranked_1s: Some(PlayerSkillInformation::for_bot()),
+                            ranked_2s: Some(PlayerSkillInformation::for_bot()),
+                            ranked_3s: Some(PlayerSkillInformation::for_bot()),
+                        })),
+                    );
+                    context.request_repaint();
+                    return;
+                }
 
-            current.insert(player_key.clone(), None);
+                current.insert(player_key.clone(), None);
+            }
 
             let Ok(mut response) = get_with_retries::<3>(&url) else {
                 error_tx
@@ -279,6 +282,7 @@ impl RankAPI {
                 ranked_3s: skill_by_playlist(&response.skill.skills, Playlist::Threes),
             };
 
+            let mut current = current.write().unwrap();
             current.insert(player_key.clone(), Some(Arc::new(ranks)));
             context.request_repaint();
         });

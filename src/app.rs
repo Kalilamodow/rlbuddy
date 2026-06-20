@@ -61,7 +61,6 @@ fn schedule_overlay_flyover(ctx: egui::Context) {
         ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
             egui::WindowLevel::Normal,
         ));
-        ctx.request_repaint();
     });
 }
 
