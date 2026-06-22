@@ -1,11 +1,12 @@
 use std::{
     collections::HashMap,
+    fmt,
     sync::{Arc, RwLock, mpsc},
     thread,
 };
 
 use eframe::egui;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 
 use crate::rl_stats_api::PlayerData;
@@ -25,7 +26,7 @@ struct GetPlayerSkillsPlaylistData {
     id: u8,
     mmr: i16,
     tier: u8,
-    // division: u8, - this exists maybe use in the future
+    division: u8,
 }
 
 #[derive(Deserialize, Debug)]
@@ -127,9 +128,37 @@ impl Rank {
     }
 }
 
+#[derive(Debug, FromPrimitive)]
+#[repr(u8)]
+pub enum Division {
+    #[num_enum(default)]
+    None,
+    One,
+    Two,
+    Three,
+    Four,
+}
+
+impl fmt::Display for Division {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Division::None => "",
+                Division::One => " Div I",
+                Division::Two => " Div II",
+                Division::Three => " Div III",
+                Division::Four => " Div IV",
+            }
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct PlayerSkillInformation {
     pub rank: Rank,
+    pub div: Division,
     pub mmr: i16,
     pub rank_is_estimate: bool,
 }
@@ -138,6 +167,7 @@ impl PlayerSkillInformation {
     fn for_bot() -> PlayerSkillInformation {
         PlayerSkillInformation {
             rank: Rank::Unranked,
+            div: Division::None,
             mmr: 0,
             rank_is_estimate: false,
         }
@@ -153,6 +183,7 @@ impl PlayerSkillInformation {
             } else {
                 actual_rank
             },
+            div: Division::from(playlist.division),
             mmr: playlist.mmr,
             rank_is_estimate: use_estimate,
         }

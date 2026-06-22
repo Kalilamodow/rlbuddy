@@ -172,8 +172,9 @@ impl RankDisplayApp {
                             if let Some(skill) = skill {
                                 let response =
                                     ui.image(skill.rank.to_image()).on_hover_text(format!(
-                                        "{}\nMMR: {}{}",
+                                        "{}{}\nMMR: {}{}",
                                         skill.rank.as_str(),
+                                        skill.div,
                                         skill.mmr,
                                         if skill.rank_is_estimate {
                                             "\nRank estimate based on MMR"
