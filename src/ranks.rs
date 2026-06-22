@@ -9,46 +9,34 @@ use serde::Deserialize;
 
 use crate::rl_stats_api::PlayerData;
 
-const API_URL: &str = "https://rocket-league-mmrs.kmdw.dev";
+const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
 #[derive(Clone)]
 #[repr(u8)]
 enum Playlist {
     Ones = 10,
     Twos = 11,
-    // idk why its not 12
     Threes = 13,
 }
 
-// Skill rating = Mu * 20 + 100
-// https://www.reddit.com/r/RocketLeague/comments/juuzkn/comment/gchywcr/?context=3
-// note: throughout the code we refer to skill rating by its informal name, mmr
-fn mu_to_skill_rating(mu: f64) -> i16 {
-    let real = mu * 20.0 + 100.0;
-    real.ceil() as i16
-}
-
-// for the sake of readability, all unused fields are ignored
 #[derive(Deserialize, Debug)]
-struct GetPlayerSkillsResponseSkill {
-    #[serde(rename = "Playlist")]
-    playlist: u8,
-    #[serde(rename = "Tier")]
+struct GetPlayerSkillsPlaylistData {
+    id: u8,
+    mmr: i16,
     tier: u8,
-    // see comment in fn mu_to_skill_rating
-    #[serde(rename = "Mu")]
-    mu: f64,
-}
-
-#[derive(Deserialize, Debug)]
-struct GetPlayerSkillsResponseData {
-    #[serde(rename = "Skills")]
-    skills: Vec<GetPlayerSkillsResponseSkill>,
+    // division: u8, - this exists maybe use in the future
 }
 
 #[derive(Deserialize, Debug)]
 struct GetPlayerSkillsResponse {
-    skill: GetPlayerSkillsResponseData,
+    playlists: Vec<GetPlayerSkillsPlaylistData>,
+}
+
+impl GetPlayerSkillsResponse {
+    pub fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
+        let playlist_id = playlist as u8;
+        self.playlists.iter().find(|sk| sk.id == playlist_id)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -108,6 +96,42 @@ impl Rank {
             Rank::Ssl => "Supersonic Legend",
         }
     }
+
+    pub fn from_tier(tier: u8) -> Rank {
+        match tier {
+            // rust should have a non unsafe way to do it automatically tbh
+            0..=22 => unsafe { std::mem::transmute::<u8, Rank>(tier) },
+            _ => unreachable!("invalid tier: {}", tier),
+        }
+    }
+
+    // uses f2p season 23 1v1
+    pub fn estimate_from_mmr(mmr: i16) -> Rank {
+        match mmr {
+            ..=156 => Rank::Bronze1,
+            ..=213 => Rank::Bronze2,
+            ..=274 => Rank::Bronze3,
+            ..=334 => Rank::Silver1,
+            ..=394 => Rank::Silver2,
+            ..=454 => Rank::Silver3,
+            ..=514 => Rank::Gold1,
+            ..=574 => Rank::Gold2,
+            ..=634 => Rank::Gold3,
+            ..=694 => Rank::Plat1,
+            ..=753 => Rank::Plat2,
+            ..=808 => Rank::Plat3,
+            ..=874 => Rank::Diamond1,
+            ..=930 => Rank::Diamond2,
+            ..=994 => Rank::Diamond3,
+            ..=1052 => Rank::Champ1,
+            ..=1114 => Rank::Champ2,
+            ..=1170 => Rank::Champ3,
+            ..=1232 => Rank::GC1,
+            ..=1295 => Rank::GC2,
+            ..=1351 => Rank::GC3,
+            _ => Rank::Ssl,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -118,11 +142,26 @@ pub struct PlayerSkillInformation {
 }
 
 impl PlayerSkillInformation {
-    pub fn for_bot() -> PlayerSkillInformation {
+    fn for_bot() -> PlayerSkillInformation {
         PlayerSkillInformation {
             rank: Rank::Unranked,
             mmr: 0,
             rank_is_estimate: false,
+        }
+    }
+
+    fn from_playlist(playlist: &GetPlayerSkillsPlaylistData) -> PlayerSkillInformation {
+        let actual_rank = Rank::from_tier(playlist.tier);
+        let use_estimate = actual_rank == Rank::Unranked;
+
+        PlayerSkillInformation {
+            rank: if use_estimate {
+                Rank::estimate_from_mmr(playlist.mmr)
+            } else {
+                actual_rank
+            },
+            mmr: playlist.mmr,
+            rank_is_estimate: use_estimate,
         }
     }
 }
@@ -134,66 +173,20 @@ pub struct EventRanks {
     pub ranked_3s: Option<PlayerSkillInformation>,
 }
 
-fn tier_to_rank(tier: u8) -> Rank {
-    match tier {
-        // rust should have a non unsafe way to do it automatically tbh
-        0..=22 => unsafe { std::mem::transmute::<u8, Rank>(tier) },
-        _ => unreachable!("invalid tier: {}", tier),
+impl EventRanks {
+    fn from_skills(skill: GetPlayerSkillsResponse) -> EventRanks {
+        EventRanks {
+            ranked_1s: skill
+                .get_playlist(Playlist::Ones)
+                .map(PlayerSkillInformation::from_playlist),
+            ranked_2s: skill
+                .get_playlist(Playlist::Twos)
+                .map(PlayerSkillInformation::from_playlist),
+            ranked_3s: skill
+                .get_playlist(Playlist::Threes)
+                .map(PlayerSkillInformation::from_playlist),
+        }
     }
-}
-
-/// uses ftp season 23 1v1
-fn mmr_rank_estimate(mmr: &i16) -> Rank {
-    match mmr {
-        ..=156 => Rank::Bronze1,
-        ..=213 => Rank::Bronze2,
-        ..=274 => Rank::Bronze3,
-        ..=334 => Rank::Silver1,
-        ..=394 => Rank::Silver2,
-        ..=454 => Rank::Silver3,
-        ..=514 => Rank::Gold1,
-        ..=574 => Rank::Gold2,
-        ..=634 => Rank::Gold3,
-        ..=694 => Rank::Plat1,
-        ..=753 => Rank::Plat2,
-        ..=808 => Rank::Plat3,
-        ..=874 => Rank::Diamond1,
-        ..=930 => Rank::Diamond2,
-        ..=994 => Rank::Diamond3,
-        ..=1052 => Rank::Champ1,
-        ..=1114 => Rank::Champ2,
-        ..=1170 => Rank::Champ3,
-        ..=1232 => Rank::GC1,
-        ..=1295 => Rank::GC2,
-        ..=1351 => Rank::GC3,
-        _ => Rank::Ssl,
-    }
-}
-
-fn skill_by_playlist(
-    skills: &[GetPlayerSkillsResponseSkill],
-    playlist: Playlist,
-) -> Option<PlayerSkillInformation> {
-    let playlist_id = playlist as u8;
-    skills
-        .iter()
-        .find(|sk| sk.playlist == playlist_id)
-        .map(|sk| PlayerSkillInformation {
-            rank: tier_to_rank(sk.tier),
-            mmr: mu_to_skill_rating(sk.mu),
-            rank_is_estimate: false,
-        })
-        .map(|sk| {
-            if sk.rank == Rank::Unranked {
-                PlayerSkillInformation {
-                    rank: mmr_rank_estimate(&sk.mmr),
-                    mmr: sk.mmr,
-                    rank_is_estimate: true,
-                }
-            } else {
-                sk
-            }
-        })
 }
 
 fn get_with_retries<const RETRIES: u8>(
@@ -238,7 +231,7 @@ impl RankAPI {
         let error_tx = self.error_sender.clone();
 
         let url = format!(
-            "{}/skills/getPlayerSkill/{}",
+            "{}?playerId={}",
             API_URL,
             urlencoding::encode(&player.platform_id)
         );
@@ -276,11 +269,7 @@ impl RankAPI {
                 .read_json::<GetPlayerSkillsResponse>()
                 .unwrap();
 
-            let ranks = EventRanks {
-                ranked_1s: skill_by_playlist(&response.skill.skills, Playlist::Ones),
-                ranked_2s: skill_by_playlist(&response.skill.skills, Playlist::Twos),
-                ranked_3s: skill_by_playlist(&response.skill.skills, Playlist::Threes),
-            };
+            let ranks = EventRanks::from_skills(response);
 
             let mut current = current.write().unwrap();
             current.insert(player_key.clone(), Some(Arc::new(ranks)));
