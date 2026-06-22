@@ -5,13 +5,14 @@ use std::{
 };
 
 use eframe::egui;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 
 use crate::rl_stats_api::PlayerData;
 
 const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
-#[derive(Clone)]
+#[derive(Clone, IntoPrimitive)]
 #[repr(u8)]
 enum Playlist {
     Ones = 10,
@@ -34,12 +35,12 @@ struct GetPlayerSkillsResponse {
 
 impl GetPlayerSkillsResponse {
     pub fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
-        let playlist_id = playlist as u8;
+        let playlist_id: u8 = playlist.into();
         self.playlists.iter().find(|sk| sk.id == playlist_id)
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 #[allow(dead_code)] // since its constructed with mem::transmute
 pub enum Rank {
@@ -97,14 +98,6 @@ impl Rank {
         }
     }
 
-    pub fn from_tier(tier: u8) -> Rank {
-        match tier {
-            // rust should have a non unsafe way to do it automatically tbh
-            0..=22 => unsafe { std::mem::transmute::<u8, Rank>(tier) },
-            _ => unreachable!("invalid tier: {}", tier),
-        }
-    }
-
     // uses f2p season 23 1v1
     pub fn estimate_from_mmr(mmr: i16) -> Rank {
         match mmr {
@@ -151,7 +144,7 @@ impl PlayerSkillInformation {
     }
 
     fn from_playlist(playlist: &GetPlayerSkillsPlaylistData) -> PlayerSkillInformation {
-        let actual_rank = Rank::from_tier(playlist.tier);
+        let actual_rank = Rank::try_from_primitive(playlist.tier).expect("Failed to convert rank");
         let use_estimate = actual_rank == Rank::Unranked;
 
         PlayerSkillInformation {

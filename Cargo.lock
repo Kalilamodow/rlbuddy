@@ -2138,6 +2138,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui_extras",
+ "num_enum",
  "serde",
  "serde_json",
  "ureq",
