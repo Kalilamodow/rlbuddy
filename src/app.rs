@@ -45,48 +45,28 @@ pub struct RankDisplayApp {
     players: Arc<Mutex<Option<Vec<PlayerData>>>>,
     player_ranks: RankAPI,
     current_error: Option<String>,
-    hotkey_rx: mpsc::Receiver<bool>,
+    overlay_rx: mpsc::Receiver<bool>,
     prev_hide_pos: Option<egui::Pos2>,
 }
 
-fn schedule_overlay_flyover(ctx: egui::Context) {
-    let (original_position, is_focused_already) = ctx.input(|i| {
-        let outer_rect = i.viewport().outer_rect;
-        let position = outer_rect.map(|outer_rect| egui::pos2(outer_rect.left(), outer_rect.top()));
-        let focused = i.viewport().focused.unwrap_or(false);
-
-        (position, focused)
-    });
-
+fn schedule_overlay_flyover(ctx: egui::Context, overlay_tx: mpsc::Sender<bool>) {
+    let is_focused_already = ctx.input(|i| i.viewport().focused.unwrap_or(false));
     if is_focused_already {
         return;
     }
 
-    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
-    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-        egui::WindowLevel::AlwaysOnTop,
-    ));
+    overlay_tx.send(true).unwrap();
 
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(3));
-        if let Some(original_position) = original_position {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(original_position));
-        }
-        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-            egui::WindowLevel::AlwaysOnBottom,
-        ));
-        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-            egui::WindowLevel::Normal,
-        ));
+        overlay_tx.send(false).unwrap();
     });
 }
 
 impl RankDisplayApp {
     pub fn new(ctx: &eframe::CreationContext) -> Self {
         let (errors_tx, errors_rx) = mpsc::channel();
-        let (hotkey_tx, hotkey_rx) = mpsc::channel();
+        let (overlay_tx, overlay_rx) = mpsc::channel();
 
         let players = Arc::new(Mutex::new(None));
 
@@ -95,15 +75,17 @@ impl RankDisplayApp {
             error_receiver: errors_rx,
             player_ranks: RankAPI::new(ctx.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
-            hotkey_rx,
+            overlay_rx,
             prev_hide_pos: None,
         };
 
+        let overlay_tx_for_hotkey = overlay_tx.clone();
         thread::spawn(move || {
-            hotkey::listen_for_hotkey(hotkey_tx);
+            hotkey::listen_for_hotkey(overlay_tx_for_hotkey);
         });
 
         let ctx = ctx.egui_ctx.clone();
+        let overlay_tx_for_popup = overlay_tx.clone();
         thread::spawn(move || {
             let result = rl_stats_api::connect_to_stats_api(|event| match event {
                 RLEvent::SetPlayerList(mut new_players) => {
@@ -121,7 +103,9 @@ impl RankDisplayApp {
                         ctx.request_repaint();
                     }
                 }
-                RLEvent::MatchStart => schedule_overlay_flyover(ctx.clone()),
+                RLEvent::MatchStart => {
+                    schedule_overlay_flyover(ctx.clone(), overlay_tx_for_popup.clone())
+                }
             });
 
             if let Err(error) = result {
@@ -292,8 +276,8 @@ impl eframe::App for RankDisplayApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if let Ok(hotkey) = self.hotkey_rx.try_recv() {
-            if hotkey {
+        if let Ok(should_overlay) = self.overlay_rx.try_recv() {
+            if should_overlay {
                 self.show(ctx);
             } else {
                 self.hide(ctx);
