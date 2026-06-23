@@ -1,6 +1,6 @@
 # Rocket League lobby ranks
 
-An overlay which pops up when the game starts that displays the ranks of everyone in your lobby.
+An overlay which displays the ranks of everyone in your lobby.
 
 <img src="demo.jpeg">
 
@@ -10,4 +10,4 @@ An overlay which pops up when the game starts that displays the ranks of everyon
 
 First, make sure that the stats api is enabled. The instructions are [here](https://www.rocketleague.com/developer/stats-api#configuration). Set the packet rate to whatever, 1 is fine, but don't change the port. Then, start rocket league and the app.
 
-When a game starts, it automatically moves to the foreground for a few seconds before disappearing again.
+You can manually open the overlay with `ctrl` + `shift` + `p`. It automatically pops up for a few seconds when a game starts.
