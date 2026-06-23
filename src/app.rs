@@ -60,6 +60,8 @@ fn schedule_overlay_flyover(ctx: egui::Context) {
     }
 
     ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
     ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
         egui::WindowLevel::AlwaysOnTop,
     ));
