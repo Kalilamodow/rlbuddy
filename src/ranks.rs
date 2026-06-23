@@ -9,8 +9,6 @@ use eframe::egui;
 use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 
-use crate::rl_stats_api::PlayerData;
-
 const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
 #[derive(Clone, IntoPrimitive)]
@@ -164,15 +162,6 @@ pub struct PlayerSkillInformation {
 }
 
 impl PlayerSkillInformation {
-    fn for_bot() -> PlayerSkillInformation {
-        PlayerSkillInformation {
-            rank: Rank::Unranked,
-            div: Division::None,
-            mmr: 0,
-            rank_is_estimate: false,
-        }
-    }
-
     fn from_playlist(playlist: &GetPlayerSkillsPlaylistData) -> PlayerSkillInformation {
         let actual_rank = Rank::try_from_primitive(playlist.tier).expect("Failed to convert rank");
         let use_estimate = actual_rank == Rank::Unranked;
@@ -227,7 +216,6 @@ fn get_with_retries<const RETRIES: u8>(
 }
 
 pub struct RankAPI {
-    // key is stringified PlayerData
     // option for whether its loaded yet
     ranks: Arc<RwLock<HashMap<String, Option<Arc<EventRanks>>>>>,
     context: egui::Context,
@@ -243,42 +231,25 @@ impl RankAPI {
         }
     }
 
-    pub fn get(&self, player: &PlayerData) -> Option<Arc<EventRanks>> {
-        let player_key = player.to_string();
-
+    // String reference to only clone it if we actually need the ownership for
+    // a new thread
+    pub fn get(&self, platform_id: &String) -> Option<Arc<EventRanks>> {
         let current = Arc::clone(&self.ranks);
-        if let Some(existing) = current.read().unwrap().get(&player_key) {
+        if let Some(existing) = current.read().unwrap().get(platform_id) {
             return existing.clone();
         }
 
+        let platform_id = platform_id.clone();
         let context = self.context.clone();
         let error_tx = self.error_sender.clone();
 
-        let url = format!(
-            "{}?playerId={}",
-            API_URL,
-            urlencoding::encode(&player.platform_id)
-        );
-        let player_platform = player.platform;
+        let url = format!("{}?playerId={}", API_URL, urlencoding::encode(&platform_id));
 
         thread::spawn(move || {
             // drop the lock before making the http request
             {
                 let mut current = current.write().unwrap();
-                if player_platform == crate::rl_stats_api::Platform::Bot {
-                    current.insert(
-                        player_key,
-                        Some(Arc::new(EventRanks {
-                            ranked_1s: Some(PlayerSkillInformation::for_bot()),
-                            ranked_2s: Some(PlayerSkillInformation::for_bot()),
-                            ranked_3s: Some(PlayerSkillInformation::for_bot()),
-                        })),
-                    );
-                    context.request_repaint();
-                    return;
-                }
-
-                current.insert(player_key.clone(), None);
+                current.insert(platform_id.clone(), None);
             }
 
             let Ok(mut response) = get_with_retries::<3>(&url) else {
@@ -296,7 +267,7 @@ impl RankAPI {
             let ranks = EventRanks::from_skills(response);
 
             let mut current = current.write().unwrap();
-            current.insert(player_key.clone(), Some(Arc::new(ranks)));
+            current.insert(platform_id, Some(Arc::new(ranks)));
             context.request_repaint();
         });
 

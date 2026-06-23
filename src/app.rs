@@ -175,7 +175,7 @@ impl RankDisplayApp {
                         ui.label("-");
                         ui.label("-");
                         ui.label("-");
-                    } else if let Some(player_skills) = self.player_ranks.get(player) {
+                    } else if let Some(player_skills) = self.player_ranks.get(&player.platform_id) {
                         let modes = [
                             &player_skills.ranked_1s,
                             &player_skills.ranked_2s,
