@@ -168,22 +168,20 @@ impl RankDisplayApp {
                             &player_skills.ranked_3s,
                         ];
 
-                        for skill in modes {
-                            if let Some(skill) = skill {
-                                let response =
-                                    ui.image(skill.rank.to_image()).on_hover_text(format!(
-                                        "{}{}\nMMR: {}{}",
-                                        skill.rank.as_str(),
-                                        skill.div,
-                                        skill.mmr,
-                                        if skill.rank_is_estimate {
-                                            "\nRank estimate based on MMR"
-                                        } else {
-                                            ""
-                                        }
+                        for mode in modes {
+                            if let Some(mode) = mode {
+                                if !mode.rank_is_estimate {
+                                    ui.image(mode.rank.to_image()).on_hover_text(format!(
+                                        "{}{}\nMMR: {}",
+                                        mode.rank.as_str(),
+                                        mode.div,
+                                        mode.mmr
                                     ));
+                                } else {
+                                    let response = ui.image(mode.rank.to_image()).on_hover_text(
+                                        format!("MMR: {}\nRank estimated", mode.mmr),
+                                    );
 
-                                if skill.rank_is_estimate {
                                     // warning badge
                                     let rect = response.rect;
                                     let badge_center =
