@@ -47,17 +47,31 @@ pub struct RankDisplayApp {
 }
 
 fn schedule_overlay_flyover(ctx: egui::Context) {
+    let (original_position, is_focused_already) = ctx.input(|i| {
+        let outer_rect = i.viewport().outer_rect;
+        let position = outer_rect.map(|outer_rect| egui::pos2(outer_rect.left(), outer_rect.top()));
+        let focused = i.viewport().focused.unwrap_or(false);
+
+        (position, focused)
+    });
+
+    if is_focused_already {
+        return;
+    }
+
     ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
-    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-    ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
     ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
         egui::WindowLevel::AlwaysOnTop,
     ));
 
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(3));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        if let Some(original_position) = original_position {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(original_position));
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::AlwaysOnBottom,
+        ));
         ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
             egui::WindowLevel::Normal,
         ));
