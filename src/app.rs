@@ -1,3 +1,4 @@
+use crate::hotkey;
 use crate::ranks::{Rank, RankAPI};
 use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
 use eframe::egui;
@@ -44,6 +45,8 @@ pub struct RankDisplayApp {
     players: Arc<Mutex<Option<Vec<PlayerData>>>>,
     player_ranks: RankAPI,
     current_error: Option<String>,
+    hotkey_rx: mpsc::Receiver<bool>,
+    prev_hide_pos: Option<egui::Pos2>,
 }
 
 fn schedule_overlay_flyover(ctx: egui::Context) {
@@ -83,6 +86,7 @@ fn schedule_overlay_flyover(ctx: egui::Context) {
 impl RankDisplayApp {
     pub fn new(ctx: &eframe::CreationContext) -> Self {
         let (errors_tx, errors_rx) = mpsc::channel();
+        let (hotkey_tx, hotkey_rx) = mpsc::channel();
 
         let players = Arc::new(Mutex::new(None));
 
@@ -91,7 +95,13 @@ impl RankDisplayApp {
             error_receiver: errors_rx,
             player_ranks: RankAPI::new(ctx.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
+            hotkey_rx,
+            prev_hide_pos: None,
         };
+
+        thread::spawn(move || {
+            hotkey::listen_for_hotkey(hotkey_tx);
+        });
 
         let ctx = ctx.egui_ctx.clone();
         thread::spawn(move || {
@@ -231,6 +241,33 @@ impl RankDisplayApp {
                 }
             });
     }
+
+    fn show(&mut self, ctx: &egui::Context) {
+        self.prev_hide_pos = ctx.input(|i| {
+            i.viewport()
+                .outer_rect
+                .map(|outer_rect| egui::pos2(outer_rect.left(), outer_rect.top()))
+        });
+
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::AlwaysOnTop,
+        ));
+    }
+
+    fn hide(&self, ctx: &egui::Context) {
+        if let Some(move_to) = self.prev_hide_pos {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(move_to));
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::AlwaysOnBottom,
+        ));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::Normal,
+        ));
+    }
 }
 
 impl eframe::App for RankDisplayApp {
@@ -252,5 +289,15 @@ impl eframe::App for RankDisplayApp {
                 self.render_main_content(ui);
             }
         });
+    }
+
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Ok(hotkey) = self.hotkey_rx.try_recv() {
+            if hotkey {
+                self.show(ctx);
+            } else {
+                self.hide(ctx);
+            }
+        }
     }
 }
