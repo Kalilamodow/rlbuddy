@@ -21,7 +21,8 @@ struct StatsApiPlayerData {
     name: String,
     /// "Platform identifier in the format Platform|Uid|Splitscreen (e.g. "Steam|123|0", "Epic|456|0")."
     primary_id: String,
-    team_num: u8, // theres other stuff but we can just ignore it
+    team_num: u8,
+    score: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,6 +98,7 @@ pub struct PlayerData {
     pub platform: Platform,
     pub platform_id: String,
     pub team: Team,
+    pub score: u16,
     pub is_self: bool,
 }
 
@@ -111,6 +113,7 @@ fn parse_stats_api_player(data: (usize, StatsApiPlayerData)) -> Option<PlayerDat
             platform_id: value.primary_id,
             team: value.team_num.into(),
             is_self: index == 0,
+            score: value.score,
         })
     } else {
         None

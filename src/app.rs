@@ -1,7 +1,7 @@
 use crate::hotkey;
 use crate::ranks::{Rank, RankAPI};
 use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
-use eframe::egui;
+use eframe::egui::{self, Color32};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
@@ -36,6 +36,20 @@ impl Rank {
             Rank::GC2 => egui::include_image!("../assets/Grand_Champion2_rank_icon.png"),
             Rank::GC3 => egui::include_image!("../assets/Grand_Champion3_rank_icon.png"),
             Rank::Ssl => egui::include_image!("../assets/Supersonic_Legend_rank_icon.png"),
+        }
+    }
+
+    pub fn to_color(&self) -> Color32 {
+        match self {
+            Rank::Unranked => Color32::DARK_GRAY,
+            Rank::Bronze1 | Rank::Bronze2 | Rank::Bronze3 => Color32::BROWN,
+            Rank::Silver1 | Rank::Silver2 | Rank::Silver3 => Color32::GRAY,
+            Rank::Gold1 | Rank::Gold2 | Rank::Gold3 => Color32::YELLOW,
+            Rank::Plat1 | Rank::Plat2 | Rank::Plat3 => Color32::LIGHT_BLUE,
+            Rank::Diamond1 | Rank::Diamond2 | Rank::Diamond3 => Color32::BLUE,
+            Rank::Champ1 | Rank::Champ2 | Rank::Champ3 => Color32::PURPLE,
+            Rank::GC1 | Rank::GC2 | Rank::GC3 => Color32::RED,
+            Rank::Ssl => Color32::WHITE,
         }
     }
 }
@@ -131,95 +145,71 @@ impl RankDisplayApp {
             return;
         }
 
-        egui::Grid::new("player list")
-            .num_columns(5)
-            .spacing([12.0, 12.0])
+        // 3 columns + allocate_space hack
+        // https://github.com/emilk/egui/issues/3928
+        ui.label("Current match");
+        egui::Grid::new("current match details")
+            .spacing(egui::vec2(16.0, 8.0))
             .striped(true)
-            .min_row_height(32.0)
+            .num_columns(3)
             .show(ui, |ui| {
-                ui.label(bold_text("Name"));
-                ui.label(bold_text("Platform"));
-                ui.label(bold_text("1s"));
-                ui.label(bold_text("2s"));
-                ui.label(bold_text("3s"));
+                ui.label(bold_text("Player"));
+                ui.label(bold_text("Score"));
+                ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
                 ui.end_row();
 
                 for player in players {
-                    ui.horizontal(|ui| {
-                        let ui_rect = ui.max_rect();
-                        ui.painter().rect_filled(
-                            egui::Rect {
-                                // ui_rect y's for the label basically so it doesnt cover the whole row
-                                min: egui::Pos2::new(ui_rect.min.x + 1.0, ui_rect.min.y - 8.0),
-                                max: egui::Pos2::new(ui_rect.min.x + 3.0, ui_rect.max.y + 8.0),
-                            },
-                            2.0,
-                            match player.team {
-                                Team::Blue => egui::Color32::from_rgb(0, 64, 255),
-                                Team::Orange => egui::Color32::from_rgb(255, 128, 0),
-                            },
+                    let skill = if player.platform == Platform::Bot {
+                        None
+                    } else {
+                        self.player_ranks.get(&player.platform_id)
+                    };
+
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+
+                        ui.label(
+                            bold_text(&player.name)
+                                .color(match player.team {
+                                    Team::Blue => Color32::from_rgb(64, 128, 255),
+                                    Team::Orange => Color32::ORANGE,
+                                })
+                                .size(15.0),
                         );
 
-                        ui.add_space(9.0);
-                        ui.label(&player.name);
-                    });
+                        ui.horizontal(|ui| {
+                            if let Some(skill) = skill.clone() {
+                                let modes = [&skill.duels, &skill.doubles, &skill.standard];
 
-                    ui.label(player.platform.to_string());
+                                for mode in modes {
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 2.0;
 
-                    if player.platform == Platform::Bot {
-                        ui.label("-");
-                        ui.label("-");
-                        ui.label("-");
-                    } else if let Some(player_skills) = self.player_ranks.get(&player.platform_id) {
-                        let modes = [
-                            &player_skills.duels,
-                            &player_skills.doubles,
-                            &player_skills.standard,
-                        ];
+                                        if let Some(mode) = mode {
+                                            let image = ui.image(mode.rank.to_image());
+                                            if mode.rank_is_estimate {
+                                                image.on_hover_text("Estimated rank");
+                                            } else {
+                                                image.on_hover_text(
+                                                    mode.rank.as_str().to_string()
+                                                        + &mode.div.to_string(),
+                                                );
+                                            }
 
-                        for mode in modes {
-                            if let Some(mode) = mode {
-                                if mode.rank_is_estimate {
-                                    let response = ui.image(mode.rank.to_image()).on_hover_text(
-                                        format!("MMR: {}\nRank estimated", mode.mmr),
-                                    );
-
-                                    // warning badge
-                                    let rect = response.rect;
-                                    let badge_center =
-                                        egui::Pos2::new(rect.right() - 4.0, rect.bottom() - 4.0);
-
-                                    ui.painter().circle_filled(
-                                        badge_center,
-                                        4.0,
-                                        egui::Color32::RED,
-                                    );
-
-                                    ui.painter().text(
-                                        badge_center,
-                                        egui::Align2::CENTER_CENTER,
-                                        "!",
-                                        egui::FontId::proportional(8.0),
-                                        egui::Color32::WHITE,
-                                    );
-                                } else {
-                                    ui.image(mode.rank.to_image()).on_hover_text(format!(
-                                        "{}{}\nMMR: {}",
-                                        mode.rank.as_str(),
-                                        mode.div,
-                                        mode.mmr
-                                    ));
+                                            ui.label(
+                                                egui::RichText::new(mode.mmr.to_string())
+                                                    .color(mode.rank.to_color()),
+                                            );
+                                        } else {
+                                            ui.label("None");
+                                        }
+                                    });
                                 }
-                            } else {
-                                ui.image(Rank::Unranked.to_image())
-                                    .on_hover_text("No data for gamemode");
                             }
-                        }
-                    } else {
-                        ui.spinner();
-                        ui.spinner();
-                        ui.spinner();
-                    }
+                        });
+                    });
+                    ui.label(player.score.to_string());
+                    ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
                     ui.end_row();
                 }
             });
@@ -260,8 +250,6 @@ impl eframe::App for RankDisplayApp {
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            ui.heading("Lobby info");
-            ui.add_space(8.0);
             if let Some(err) = &self.current_error {
                 ui.label(bold_text("Fatal error"));
                 ui.label(err);
