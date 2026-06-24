@@ -23,12 +23,7 @@ fn callback(state: &Arc<RwLock<HotkeyState>>, event: &Event, trigger: &mpsc::Sen
         _ => {}
     }
 
-    if state.keys_pressed.contains(&Key::KeyP)
-        && (state.keys_pressed.contains(&Key::ShiftLeft)
-            || state.keys_pressed.contains(&Key::ShiftRight))
-        && (state.keys_pressed.contains(&Key::ControlLeft)
-            || state.keys_pressed.contains(&Key::ControlRight))
-    {
+    if state.keys_pressed.contains(&Key::Alt) {
         if !state.previous {
             state.previous = true;
             trigger.send(true).unwrap();
