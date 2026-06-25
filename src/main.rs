@@ -9,6 +9,7 @@ use eframe::egui;
 
 fn main() -> eframe::Result {
     let gui_options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Glow,
         viewport: egui::ViewportBuilder::default().with_inner_size([350.0, 400.0]),
         ..Default::default()
     };
