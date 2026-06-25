@@ -2,7 +2,7 @@ use crate::hotkey;
 use crate::ranks::{Rank, RankAPI};
 use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
 use eframe::egui::{self, Color32};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -66,44 +66,36 @@ impl Rank {
 
 pub struct RankDisplayApp {
     error_receiver: mpsc::Receiver<String>,
-    players: Arc<Mutex<Option<Vec<PlayerData>>>>,
-    player_ranks: RankAPI,
     current_error: Option<String>,
-    overlay_rx: mpsc::Receiver<bool>,
+
+    rl_rx: mpsc::Receiver<RLEvent>,
+    current_players: Option<Vec<PlayerData>>,
+    player_ranks: RankAPI,
+
     prev_hide_pos: Option<egui::Pos2>,
-    prev_match_info: Arc<Mutex<Vec<MatchInfo>>>,
-}
+    prev_match_info: Vec<MatchInfo>,
 
-fn schedule_overlay_flyover(ctx: &egui::Context, overlay_tx: mpsc::Sender<bool>) {
-    let is_focused_already = ctx.input(|i| i.viewport().focused.unwrap_or(false));
-    if is_focused_already {
-        return;
-    }
-
-    overlay_tx.send(true).unwrap();
-
-    thread::spawn(move || {
-        thread::sleep(Duration::from_secs(3));
-        overlay_tx.send(false).unwrap();
-    });
+    overlay_tx: mpsc::Sender<bool>,
+    overlay_rx: mpsc::Receiver<bool>,
 }
 
 impl RankDisplayApp {
-    pub fn new(ctx: &eframe::CreationContext) -> Self {
+    pub fn new(cc: &eframe::CreationContext) -> Self {
+        let ctx = cc.egui_ctx.clone();
         let (errors_tx, errors_rx) = mpsc::channel();
         let (overlay_tx, overlay_rx) = mpsc::channel();
-
-        let players = Arc::<Mutex<Option<Vec<PlayerData>>>>::default();
-        let prev_match_info = Arc::<Mutex<Vec<MatchInfo>>>::default();
+        let (rl_tx, rl_rx) = mpsc::channel();
 
         let app = RankDisplayApp {
-            players: Arc::clone(&players),
+            current_players: None,
+            rl_rx,
             error_receiver: errors_rx,
-            player_ranks: RankAPI::new(ctx.egui_ctx.clone(), errors_tx.clone()),
+            player_ranks: RankAPI::new(cc.egui_ctx.clone(), errors_tx.clone()),
             current_error: None,
+            overlay_tx: overlay_tx.clone(),
             overlay_rx,
             prev_hide_pos: None,
-            prev_match_info: Arc::clone(&prev_match_info),
+            prev_match_info: Vec::new(),
         };
 
         let overlay_tx_for_hotkey = overlay_tx.clone();
@@ -111,40 +103,10 @@ impl RankDisplayApp {
             hotkey::listen_for_hotkey(overlay_tx_for_hotkey);
         });
 
-        let ctx = ctx.egui_ctx.clone();
-        let overlay_tx_for_popup = overlay_tx.clone();
         thread::spawn(move || {
-            let result = rl_stats_api::connect_to_stats_api(|event| match event {
-                RLEvent::SetPlayerList(mut new_players) => {
-                    if let Ok(mut players) = players.lock() {
-                        // group by team
-                        let our_team = new_players
-                            .iter()
-                            .find(|p| p.is_self)
-                            .map_or(Team::Blue, |p| p.team);
-                        // != bc false comes first
-                        new_players.sort_by_key(|p| p.team != our_team);
-
-                        *players = Some(new_players);
-                        ctx.request_repaint();
-                    }
-                }
-                RLEvent::MatchStart => {
-                    schedule_overlay_flyover(&ctx, overlay_tx_for_popup.clone());
-                }
-                RLEvent::MatchEnd(team) => {
-                    if let Some(players) = players.lock().unwrap().as_ref() {
-                        let mut prev_match_info = prev_match_info.lock().unwrap();
-                        prev_match_info.insert(
-                            0,
-                            MatchInfo {
-                                players: players.clone(),
-                                timestamp: SystemTime::now(),
-                                winner: team,
-                            },
-                        );
-                    }
-                }
+            let result = rl_stats_api::connect_to_stats_api(|event| {
+                rl_tx.send(event).unwrap();
+                ctx.request_repaint();
             });
 
             if let Err(error) = result {
@@ -156,28 +118,23 @@ impl RankDisplayApp {
     }
 
     fn render_main_content(&self, ui: &mut egui::Ui) {
-        let Ok(lock) = self.players.lock() else {
-            return;
-        };
-
-        let Some(players) = &*lock else {
-            ui.label("Waiting for game...");
-            ui.spinner();
-            return;
-        };
-
-        if players.is_empty() {
-            ui.label("No players");
-            return;
-        }
-
+        println!(
+            "rendering main content {}",
+            systemtime_since_epoch(SystemTime::now())
+        );
         egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.label("Current match");
-            self.render_players(ui, players, "current", true);
+            if let Some(current_players) = &self.current_players {
+                ui.label("Current match");
 
-            let prev_match_info = self.prev_match_info.lock().unwrap();
+                if current_players.is_empty() {
+                    ui.label("No players");
+                } else {
+                    self.render_players(ui, current_players, "current", true);
+                }
+            }
+
             let current_time = SystemTime::now();
-            for prev_match in prev_match_info.iter() {
+            for prev_match in &self.prev_match_info {
                 ui.separator();
 
                 ui.horizontal(|ui| {
@@ -304,6 +261,17 @@ impl RankDisplayApp {
             egui::WindowLevel::Normal,
         ));
     }
+
+    fn popup(&self) {
+        let overlay_tx = self.overlay_tx.clone();
+        // use here just for consistency
+        overlay_tx.send(true).unwrap();
+
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(3));
+            overlay_tx.send(false).unwrap();
+        });
+    }
 }
 
 impl eframe::App for RankDisplayApp {
@@ -331,6 +299,39 @@ impl eframe::App for RankDisplayApp {
                 self.show(ctx);
             } else {
                 self.hide(ctx);
+            }
+        }
+
+        if let Ok(event) = self.rl_rx.try_recv() {
+            match event {
+                RLEvent::SetPlayerList(mut new_players) => {
+                    // group by team
+                    let our_team = new_players
+                        .iter()
+                        .find(|p| p.is_self)
+                        .map_or(Team::Blue, |p| p.team);
+                    // != bc false comes first
+                    new_players.sort_by_key(|p| p.team != our_team);
+
+                    self.current_players = Some(new_players);
+                }
+                RLEvent::MatchStart => {
+                    self.popup();
+                }
+                RLEvent::MatchEnd(team) => {
+                    if let Some(players) = &self.current_players {
+                        self.prev_match_info.insert(
+                            0,
+                            MatchInfo {
+                                players: players.clone(),
+                                timestamp: SystemTime::now(),
+                                winner: team,
+                            },
+                        );
+
+                        self.current_players = Some(Vec::new());
+                    }
+                }
             }
         }
     }
