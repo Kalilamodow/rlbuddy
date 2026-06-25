@@ -2195,21 +2195,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
-name = "lobby-ranks"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui_extras",
- "num_enum",
- "rdev",
- "serde",
- "serde_json",
- "ureq",
- "urlencoding",
- "websocket",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3558,6 +3543,21 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rlbuddy"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui_extras",
+ "num_enum",
+ "rdev",
+ "serde",
+ "serde_json",
+ "ureq",
+ "urlencoding",
+ "websocket",
 ]
 
 [[package]]
