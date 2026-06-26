@@ -19,7 +19,7 @@ fn main() -> eframe::Result {
         gui_options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(app::RankDisplayApp::new(cc)))
+            Ok(Box::new(app::RlBuddyApp::new(cc)))
         }),
     )
 }

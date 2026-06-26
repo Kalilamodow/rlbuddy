@@ -105,7 +105,7 @@ fn center_label(
     center_layout(ui, 16.0, |ui| ui.label(text))
 }
 
-pub struct RankDisplayApp {
+pub struct RlBuddyApp {
     error_receiver: mpsc::Receiver<String>,
     current_error: Option<String>,
 
@@ -120,14 +120,14 @@ pub struct RankDisplayApp {
     overlay_rx: mpsc::Receiver<bool>,
 }
 
-impl RankDisplayApp {
+impl RlBuddyApp {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         let ctx = cc.egui_ctx.clone();
         let (errors_tx, errors_rx) = mpsc::channel();
         let (overlay_tx, overlay_rx) = mpsc::channel();
         let (rl_tx, rl_rx) = mpsc::channel();
 
-        let app = RankDisplayApp {
+        let app = RlBuddyApp {
             current_players: None,
             rl_rx,
             error_receiver: errors_rx,
@@ -374,7 +374,7 @@ impl RankDisplayApp {
     }
 }
 
-impl eframe::App for RankDisplayApp {
+impl eframe::App for RlBuddyApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Ok(new_error) = self.error_receiver.try_recv() {
             self.current_error = Some(new_error);
