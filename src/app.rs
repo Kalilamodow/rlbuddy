@@ -1,8 +1,8 @@
 use crate::hotkey;
-use crate::ranks::{Rank, RankAPI};
+use crate::ranks::{EventRanks, Rank, RankAPI};
 use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
 use eframe::egui::{self, Color32};
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{fmt, thread};
 
@@ -184,7 +184,11 @@ impl RlBuddyApp {
                     ui.label("In freeplay");
                 }
                 _ => {
-                    self.render_players(ui, current_players, "current", true);
+                    ui.add(PlayerTable::new(
+                        current_players,
+                        "current match",
+                        &self.player_ranks,
+                    ));
                 }
             }
         }
@@ -205,149 +209,15 @@ impl RlBuddyApp {
                     ));
                 });
 
-                self.render_players(
-                    ui,
+                ui.add(PlayerTable::new(
                     &prev_match.players,
                     systemtime_since_epoch(prev_match.timestamp)
                         .to_string()
                         .as_str(),
-                    false,
-                );
+                    &self.player_ranks,
+                ));
             }
         });
-    }
-
-    fn render_players(&self, ui: &mut egui::Ui, players: &Vec<PlayerData>, id: &str, main: bool) {
-        let playlist = Playlist::from_player_count(players.len());
-
-        // 3 columns + allocate_space hack
-        // https://github.com/emilk/egui/issues/3928
-        egui::Grid::new(id)
-            .spacing(egui::vec2(8.0, 12.0))
-            .striped(true)
-            .num_columns(3)
-            .show(ui, |ui| {
-                let bold_if_main = |text: &str| {
-                    if main {
-                        bold_text(text)
-                    } else {
-                        egui::RichText::new(text)
-                    }
-                };
-                center_label(ui, bold_if_main("Rank"));
-                ui.label(bold_if_main("Player"));
-                center_label(ui, bold_if_main("Score"));
-
-                ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
-                ui.end_row();
-
-                for player in players {
-                    let skill = if player.platform == Platform::Bot {
-                        None
-                    } else {
-                        self.player_ranks.get(&player.platform_id)
-                    };
-
-                    // rank in this gamemode
-                    if let Some(skill) = &skill {
-                        let rank = match playlist {
-                            Playlist::Ones => skill.duels.as_ref(),
-                            Playlist::Twos => skill.doubles.as_ref(),
-                            Playlist::Threes => skill.standard.as_ref(),
-                            _ => None,
-                        };
-
-                        match rank {
-                            Some(rank) => {
-                                center_layout(ui, 28.0, |ui| {
-                                    if rank.rank_is_estimate {
-                                        ui.add(
-                                            egui::Image::new(Rank::Unranked.to_image())
-                                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
-                                        )
-                                        .on_hover_text(format!("Unranked in {}", playlist))
-                                    } else {
-                                        ui.add(
-                                            egui::Image::new(rank.rank.to_image())
-                                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
-                                        )
-                                        .on_hover_text(
-                                            format!(
-                                                "{} rank: {}{}",
-                                                playlist,
-                                                rank.rank.as_str(),
-                                                rank.div
-                                            ),
-                                        )
-                                    }
-                                });
-                            }
-                            None => {
-                                center_label(ui, "-");
-                            }
-                        };
-                    } else {
-                        center_label(ui, "-");
-                    }
-
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = 4.0;
-
-                        ui.add(
-                            egui::Label::new(
-                                bold_text(&player.name)
-                                    .color(match player.team {
-                                        Team::Blue => Color32::from_rgb(64, 128, 255),
-                                        Team::Orange => Color32::ORANGE,
-                                    })
-                                    .size(15.0),
-                            )
-                            .extend(),
-                        );
-
-                        if let Some(skill) = &skill {
-                            // rank list
-                            ui.horizontal(|ui| {
-                                let modes = [&skill.duels, &skill.doubles, &skill.standard];
-
-                                for mode in modes {
-                                    // per-rank mmr + icon
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 2.0;
-
-                                        if let Some(mode) = mode {
-                                            let image = ui.image(mode.rank.to_image());
-                                            if mode.rank_is_estimate {
-                                                image.on_hover_text("Estimated rank");
-                                            } else {
-                                                image.on_hover_text(
-                                                    mode.rank.as_str().to_string()
-                                                        + &mode.div.to_string(),
-                                                );
-                                            }
-
-                                            ui.label(
-                                                egui::RichText::new(mode.mmr.to_string())
-                                                    .color(mode.rank.to_color()),
-                                            );
-                                        } else {
-                                            ui.image(Rank::Unranked.to_image());
-                                            ui.label(
-                                                egui::RichText::new("---")
-                                                    .color(Rank::Unranked.to_color()),
-                                            );
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-
-                    center_label(ui, player.score.to_string());
-                    ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
-                    ui.end_row();
-                }
-            });
     }
 
     fn show(&mut self, ctx: &egui::Context) {
@@ -449,5 +319,150 @@ impl eframe::App for RlBuddyApp {
                 }
             }
         }
+    }
+}
+
+struct PlayerTable<'a> {
+    players: &'a Vec<PlayerData>,
+    id: &'a str,
+    ranks: &'a RankAPI,
+}
+
+impl<'a> PlayerTable<'a> {
+    fn new(players: &'a Vec<PlayerData>, id: &'a str, ranks: &'a RankAPI) -> PlayerTable<'a> {
+        PlayerTable { players, id, ranks }
+    }
+
+    fn render_player(&self, ui: &mut egui::Ui, playlist: &Playlist, player: &PlayerData) {
+        let skill = if player.platform == Platform::Bot {
+            None
+        } else {
+            self.ranks.get(&player.platform_id)
+        };
+
+        // rank in this gamemode
+        if let Some(skill) = &skill {
+            PlayerTable::render_player_rank_cell(ui, playlist, skill);
+        } else {
+            center_label(ui, "-");
+        }
+
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+
+            ui.add(
+                egui::Label::new(
+                    bold_text(&player.name)
+                        .color(match player.team {
+                            Team::Blue => Color32::from_rgb(64, 128, 255),
+                            Team::Orange => Color32::ORANGE,
+                        })
+                        .size(15.0),
+                )
+                .extend(),
+            );
+
+            if let Some(skill) = &skill {
+                PlayerTable::render_rank_list(ui, skill);
+            }
+        });
+
+        center_label(ui, player.score.to_string());
+        ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
+        ui.end_row();
+    }
+
+    fn render_player_rank_cell(ui: &mut egui::Ui, playlist: &Playlist, skill: &Arc<EventRanks>) {
+        let rank = match playlist {
+            Playlist::Ones => skill.duels.as_ref(),
+            Playlist::Twos => skill.doubles.as_ref(),
+            Playlist::Threes => skill.standard.as_ref(),
+            _ => None,
+        };
+
+        match rank {
+            Some(rank) => {
+                center_layout(ui, 28.0, |ui| {
+                    if rank.rank_is_estimate {
+                        ui.add(
+                            egui::Image::new(Rank::Unranked.to_image())
+                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                        )
+                        .on_hover_text(format!("Unranked in {}", playlist))
+                    } else {
+                        ui.add(
+                            egui::Image::new(rank.rank.to_image())
+                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                        )
+                        .on_hover_text(format!(
+                            "{} rank: {}{}",
+                            playlist,
+                            rank.rank.as_str(),
+                            rank.div
+                        ))
+                    }
+                });
+            }
+            None => {
+                center_label(ui, "-");
+            }
+        }
+    }
+
+    fn render_rank_list(ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
+        ui.horizontal(|ui| {
+            let modes = [&skill.duels, &skill.doubles, &skill.standard];
+
+            for mode in modes {
+                // per-rank mmr + icon
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+
+                    if let Some(mode) = mode {
+                        let image = ui.image(mode.rank.to_image());
+                        if mode.rank_is_estimate {
+                            image.on_hover_text("Estimated rank");
+                        } else {
+                            image.on_hover_text(
+                                mode.rank.as_str().to_string() + &mode.div.to_string(),
+                            );
+                        }
+
+                        ui.label(
+                            egui::RichText::new(mode.mmr.to_string()).color(mode.rank.to_color()),
+                        );
+                    } else {
+                        ui.image(Rank::Unranked.to_image());
+                        ui.label(egui::RichText::new("---").color(Rank::Unranked.to_color()));
+                    }
+                });
+            }
+        });
+    }
+}
+
+impl egui::Widget for PlayerTable<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let playlist = Playlist::from_player_count(self.players.len());
+
+        // 3 columns + allocate_space hack
+        // https://github.com/emilk/egui/issues/3928
+        egui::Grid::new(self.id)
+            .spacing(egui::vec2(8.0, 12.0))
+            .striped(true)
+            .num_columns(3)
+            .show(ui, |ui| {
+                center_label(ui, bold_text("Rank"));
+                ui.label(bold_text("Player"));
+                center_label(ui, bold_text("Score"));
+
+                ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
+                ui.end_row();
+
+                for player in self.players {
+                    self.render_player(ui, &playlist, player);
+                }
+            })
+            .response
     }
 }
