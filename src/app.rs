@@ -14,8 +14,33 @@ fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
 }
 
+#[derive(Clone)]
+struct MatchPlayer {
+    left: bool,
+    data: PlayerData,
+}
+
+impl From<PlayerData> for MatchPlayer {
+    fn from(value: PlayerData) -> Self {
+        MatchPlayer {
+            left: false,
+            data: value,
+        }
+    }
+}
+
+fn sort_player_list(players: &mut Vec<MatchPlayer>) {
+    // group by team
+    let our_team = players
+        .iter()
+        .find(|p| p.data.is_self)
+        .map_or(Team::Blue, |p| p.data.team);
+    // != bc false comes first
+    players.sort_by_key(|p| p.data.team != our_team);
+}
+
 struct MatchInfo {
-    pub players: Vec<PlayerData>,
+    pub players: Vec<MatchPlayer>,
     pub timestamp: SystemTime,
     pub winner: Team,
 }
@@ -125,7 +150,7 @@ pub struct RlBuddyApp {
     current_error: Option<String>,
 
     rl_rx: mpsc::Receiver<RLEvent>,
-    current_players: Option<Vec<PlayerData>>,
+    current_players: Option<Vec<MatchPlayer>>,
     player_ranks: RankAPI,
 
     prev_hide_pos: Option<egui::Pos2>,
@@ -290,15 +315,37 @@ impl eframe::App for RlBuddyApp {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
                 RLEvent::SetPlayerList(mut new_players) => {
-                    // group by team
-                    let our_team = new_players
-                        .iter()
-                        .find(|p| p.is_self)
-                        .map_or(Team::Blue, |p| p.team);
-                    // != bc false comes first
-                    new_players.sort_by_key(|p| p.team != our_team);
+                    let Some(players) = self.current_players.as_mut() else {
+                        self.current_players =
+                            Some(new_players.into_iter().map(|p| p.into()).collect());
+                        return;
+                    };
 
-                    self.current_players = Some(new_players);
+                    // bots all share the same id so replace it for comparisons
+                    for player_or_bot_hmm in new_players.iter_mut() {
+                        if player_or_bot_hmm.platform == Platform::Bot {
+                            player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
+                        }
+                    }
+
+                    for player in players.iter_mut() {
+                        let updated_pos = new_players
+                            .iter()
+                            .position(|p| p.platform_id == player.data.platform_id);
+                        if let Some(updated_pos) = updated_pos {
+                            let updated = new_players.swap_remove(updated_pos);
+                            player.data = updated;
+                            player.left = false;
+                        } else {
+                            player.left = true;
+                        }
+                    }
+
+                    for remaining_to_add in new_players {
+                        players.push(remaining_to_add.into());
+                    }
+
+                    sort_player_list(players);
                 }
                 RLEvent::MatchStart => {
                     self.popup();
@@ -323,21 +370,21 @@ impl eframe::App for RlBuddyApp {
 }
 
 struct PlayerTable<'a> {
-    players: &'a Vec<PlayerData>,
+    players: &'a Vec<MatchPlayer>,
     id: &'a str,
     ranks: &'a RankAPI,
 }
 
 impl<'a> PlayerTable<'a> {
-    fn new(players: &'a Vec<PlayerData>, id: &'a str, ranks: &'a RankAPI) -> PlayerTable<'a> {
+    fn new(players: &'a Vec<MatchPlayer>, id: &'a str, ranks: &'a RankAPI) -> PlayerTable<'a> {
         PlayerTable { players, id, ranks }
     }
 
-    fn render_player(&self, ui: &mut egui::Ui, playlist: &Playlist, player: &PlayerData) {
-        let skill = if player.platform == Platform::Bot {
+    fn render_player(&self, ui: &mut egui::Ui, playlist: &Playlist, match_player: &MatchPlayer) {
+        let skill = if match_player.data.platform == Platform::Bot {
             None
         } else {
-            self.ranks.get(&player.platform_id)
+            self.ranks.get(&match_player.data.platform_id)
         };
 
         // rank in this gamemode
@@ -350,24 +397,29 @@ impl<'a> PlayerTable<'a> {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
 
+            let name_color = if match_player.left {
+                Color32::GRAY
+            } else {
+                match match_player.data.team {
+                    Team::Blue => Color32::from_rgb(64, 128, 255),
+                    Team::Orange => Color32::ORANGE,
+                }
+            };
             ui.add(
                 egui::Label::new(
-                    bold_text(&player.name)
-                        .color(match player.team {
-                            Team::Blue => Color32::from_rgb(64, 128, 255),
-                            Team::Orange => Color32::ORANGE,
-                        })
+                    bold_text(&match_player.data.name)
+                        .color(name_color)
                         .size(15.0),
                 )
                 .extend(),
             );
 
             if let Some(skill) = &skill {
-                PlayerTable::render_rank_list(ui, skill);
+                PlayerTable::render_rank_list(ui, match_player.left, skill);
             }
         });
 
-        center_label(ui, player.score.to_string());
+        center_label(ui, match_player.data.score.to_string());
         ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
         ui.end_row();
     }
@@ -409,7 +461,7 @@ impl<'a> PlayerTable<'a> {
         }
     }
 
-    fn render_rank_list(ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
+    fn render_rank_list(ui: &mut egui::Ui, muted: bool, skill: &Arc<EventRanks>) {
         ui.horizontal(|ui| {
             let modes = [&skill.duels, &skill.doubles, &skill.standard];
 
@@ -428,9 +480,14 @@ impl<'a> PlayerTable<'a> {
                             );
                         }
 
-                        ui.label(
-                            egui::RichText::new(mode.mmr.to_string()).color(mode.rank.to_color()),
-                        );
+                        if muted {
+                            ui.label(mode.mmr.to_string());
+                        } else {
+                            ui.label(
+                                egui::RichText::new(mode.mmr.to_string())
+                                    .color(mode.rank.to_color()),
+                            );
+                        }
                     } else {
                         ui.image(Rank::Unranked.to_image());
                         ui.label(egui::RichText::new("---").color(Rank::Unranked.to_color()));
@@ -443,7 +500,7 @@ impl<'a> PlayerTable<'a> {
 
 impl egui::Widget for PlayerTable<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let playlist = Playlist::from_player_count(self.players.len());
+        let playlist = Playlist::from_player_count(self.players.iter().filter(|p| !p.left).count());
 
         // 3 columns + allocate_space hack
         // https://github.com/emilk/egui/issues/3928
