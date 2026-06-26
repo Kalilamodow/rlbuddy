@@ -3,8 +3,8 @@ use crate::ranks::{Rank, RankAPI};
 use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
 use eframe::egui::{self, Color32};
 use std::sync::mpsc;
-use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{fmt, thread};
 
 fn systemtime_since_epoch(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH).unwrap().as_secs()
@@ -69,6 +69,21 @@ enum Playlist {
     Twos,
     Threes,
     Other,
+}
+
+impl fmt::Display for Playlist {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Playlist::Ones => "1s",
+                Playlist::Twos => "2s",
+                Playlist::Threes => "3s",
+                Playlist::Other => "Some",
+            }
+        )
+    }
 }
 
 fn center_layout<R>(
@@ -230,11 +245,26 @@ impl RankDisplayApp {
                         match rank {
                             Some(rank) => {
                                 center_layout(ui, 28.0, |ui| {
-                                    ui.add(
-                                        egui::Image::new(rank.rank.to_image())
-                                            .fit_to_exact_size(egui::vec2(28.0, 28.0)),
-                                    )
-                                    .on_hover_text("Rank in this gamemode")
+                                    if rank.rank_is_estimate {
+                                        ui.add(
+                                            egui::Image::new(Rank::Unranked.to_image())
+                                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                                        )
+                                        .on_hover_text(format!("Unranked in {}", playlist))
+                                    } else {
+                                        ui.add(
+                                            egui::Image::new(rank.rank.to_image())
+                                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                                        )
+                                        .on_hover_text(
+                                            format!(
+                                                "{} rank: {}{}",
+                                                playlist,
+                                                rank.rank.as_str(),
+                                                rank.div
+                                            ),
+                                        )
+                                    }
                                 });
                             }
                             None => {
