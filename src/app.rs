@@ -118,10 +118,6 @@ impl RankDisplayApp {
     }
 
     fn render_main_content(&self, ui: &mut egui::Ui) {
-        println!(
-            "rendering main content {}",
-            systemtime_since_epoch(SystemTime::now())
-        );
         egui::ScrollArea::vertical().show(ui, |ui| {
             if let Some(current_players) = &self.current_players {
                 ui.label("Current match");
