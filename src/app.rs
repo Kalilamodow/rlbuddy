@@ -64,11 +64,25 @@ impl Rank {
     }
 }
 
+#[derive(PartialEq)]
 enum Playlist {
+    Freeplay,
     Ones,
     Twos,
     Threes,
     Other,
+}
+
+impl Playlist {
+    fn from_player_count(player_count: usize) -> Playlist {
+        match player_count {
+            1 => Playlist::Freeplay,
+            2 => Playlist::Ones,
+            4 => Playlist::Twos,
+            6 => Playlist::Threes,
+            _ => Playlist::Other,
+        }
+    }
 }
 
 impl fmt::Display for Playlist {
@@ -80,6 +94,7 @@ impl fmt::Display for Playlist {
                 Playlist::Ones => "1s",
                 Playlist::Twos => "2s",
                 Playlist::Threes => "3s",
+                Playlist::Freeplay => "Freeplay",
                 Playlist::Other => "Some",
             }
         )
@@ -159,20 +174,25 @@ impl RlBuddyApp {
     }
 
     fn render_main_content(&self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            if let Some(current_players) = &self.current_players {
-                ui.label("Current match");
-
-                if current_players.is_empty() {
+        if let Some(current_players) = &self.current_players {
+            ui.label("Current match");
+            match current_players.len() {
+                0 => {
                     ui.label("No players");
-                } else {
+                }
+                1 => {
+                    ui.label("In freeplay");
+                }
+                _ => {
                     self.render_players(ui, current_players, "current", true);
                 }
             }
+        }
 
+        egui::ScrollArea::vertical().show(ui, |ui| {
             let current_time = SystemTime::now();
             for prev_match in &self.prev_match_info {
-                ui.separator();
+                ui.add(egui::Separator::default().spacing(8.0));
 
                 ui.horizontal(|ui| {
                     ui.label(bold_text(format!("{}", prev_match.winner)));
@@ -198,12 +218,7 @@ impl RlBuddyApp {
     }
 
     fn render_players(&self, ui: &mut egui::Ui, players: &Vec<PlayerData>, id: &str, main: bool) {
-        let playlist = match players.len() {
-            2 => Playlist::Ones,
-            4 => Playlist::Twos,
-            6 => Playlist::Threes,
-            _ => Playlist::Other,
-        };
+        let playlist = Playlist::from_player_count(players.len());
 
         // 3 columns + allocate_space hack
         // https://github.com/emilk/egui/issues/3928
