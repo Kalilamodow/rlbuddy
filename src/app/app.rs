@@ -258,6 +258,10 @@ impl eframe::App for RlBuddyApp {
                 }
                 RLEvent::MatchEnd(winner) => {
                     if let Some(players) = &self.current_players {
+                        if players.len() <= 1 {
+                            return;
+                        }
+
                         self.prev_match_info.insert(
                             0,
                             MatchInfo {
