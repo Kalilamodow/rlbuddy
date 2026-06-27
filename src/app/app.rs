@@ -80,8 +80,9 @@ impl RlBuddyApp {
         };
 
         let overlay_tx_for_hotkey = overlay_tx.clone();
+        let ctx_for_hotkey = ctx.clone();
         thread::spawn(move || {
-            hotkey::listen_for_hotkey(overlay_tx_for_hotkey);
+            hotkey::listen_for_hotkey(overlay_tx_for_hotkey, ctx_for_hotkey);
         });
 
         thread::spawn(move || {
