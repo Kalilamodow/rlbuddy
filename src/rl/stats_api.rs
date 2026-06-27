@@ -104,7 +104,7 @@ impl fmt::Display for Platform {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Team {
     Blue,
@@ -134,7 +134,7 @@ impl fmt::Display for Team {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlayerData {
     pub name: String,
     pub platform: Platform,
