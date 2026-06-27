@@ -34,6 +34,8 @@ impl<'a> PlayerTable<'a> {
 
             let name_color = if match_player.left {
                 Color32::GRAY
+            } else if match_player.data.is_self {
+                ui.visuals().strong_text_color()
             } else {
                 match match_player.data.team {
                     Team::Blue => Color32::from_rgb(64, 128, 255),
