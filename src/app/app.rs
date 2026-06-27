@@ -277,7 +277,7 @@ impl eframe::App for RlBuddyApp {
                 RLEvent::MatchStart => {
                     self.popup();
                 }
-                RLEvent::MatchEnd(_winner) => {
+                RLEvent::MatchEnd => {
                     if let Some(players) = &self.current_players {
                         if players.len() <= 1 {
                             return;
