@@ -1,23 +1,16 @@
 use std::{
     collections::HashMap,
-    fmt,
     sync::{Arc, RwLock, mpsc},
     thread,
 };
 
 use eframe::egui;
-use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
+use num_enum::TryFromPrimitive;
 use serde::Deserialize;
 
-const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
+use crate::core::{Division, Playlist, Rank};
 
-#[derive(Clone, IntoPrimitive)]
-#[repr(u8)]
-enum Playlist {
-    Ones = 10,
-    Twos = 11,
-    Threes = 13,
-}
+const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
 #[derive(Deserialize, Debug)]
 struct GetPlayerSkillsPlaylistData {
@@ -36,121 +29,6 @@ impl GetPlayerSkillsResponse {
     pub fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
         let playlist_id: u8 = playlist.into();
         self.playlists.iter().find(|sk| sk.id == playlist_id)
-    }
-}
-
-#[derive(Debug, PartialEq, TryFromPrimitive)]
-#[repr(u8)]
-#[allow(dead_code)] // since its constructed with mem::transmute
-pub enum Rank {
-    Unranked,
-    Bronze1,
-    Bronze2,
-    Bronze3,
-    Silver1,
-    Silver2,
-    Silver3,
-    Gold1,
-    Gold2,
-    Gold3,
-    Plat1,
-    Plat2,
-    Plat3,
-    Diamond1,
-    Diamond2,
-    Diamond3,
-    Champ1,
-    Champ2,
-    Champ3,
-    GC1,
-    GC2,
-    GC3,
-    Ssl,
-}
-
-impl Rank {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Rank::Unranked => "Unranked",
-            Rank::Bronze1 => "Bronze I",
-            Rank::Bronze2 => "Bronze II",
-            Rank::Bronze3 => "Bronze III",
-            Rank::Silver1 => "Silver I",
-            Rank::Silver2 => "Silver II",
-            Rank::Silver3 => "Silver III",
-            Rank::Gold1 => "Gold I",
-            Rank::Gold2 => "Gold II",
-            Rank::Gold3 => "Gold III",
-            Rank::Plat1 => "Platinum I",
-            Rank::Plat2 => "Platinum II",
-            Rank::Plat3 => "Platinum III",
-            Rank::Diamond1 => "Diamond I",
-            Rank::Diamond2 => "Diamond II",
-            Rank::Diamond3 => "Diamond III",
-            Rank::Champ1 => "Champion I",
-            Rank::Champ2 => "Champion II",
-            Rank::Champ3 => "Champion III",
-            Rank::GC1 => "Grand Champion I",
-            Rank::GC2 => "Grand Champion II",
-            Rank::GC3 => "Grand Champion III",
-            Rank::Ssl => "Supersonic Legend",
-        }
-    }
-
-    // uses f2p season 23 1v1
-    pub fn estimate_from_mmr(mmr: i16) -> Rank {
-        #[allow(clippy::match_overlapping_arm)]
-        match mmr {
-            ..=156 => Rank::Bronze1,
-            ..=213 => Rank::Bronze2,
-            ..=274 => Rank::Bronze3,
-            ..=334 => Rank::Silver1,
-            ..=394 => Rank::Silver2,
-            ..=454 => Rank::Silver3,
-            ..=514 => Rank::Gold1,
-            ..=574 => Rank::Gold2,
-            ..=634 => Rank::Gold3,
-            ..=694 => Rank::Plat1,
-            ..=753 => Rank::Plat2,
-            ..=808 => Rank::Plat3,
-            ..=874 => Rank::Diamond1,
-            ..=930 => Rank::Diamond2,
-            ..=994 => Rank::Diamond3,
-            ..=1052 => Rank::Champ1,
-            ..=1114 => Rank::Champ2,
-            ..=1170 => Rank::Champ3,
-            ..=1232 => Rank::GC1,
-            ..=1295 => Rank::GC2,
-            ..=1351 => Rank::GC3,
-            _ => Rank::Ssl,
-        }
-    }
-}
-
-#[derive(Debug, FromPrimitive)]
-#[repr(u8)]
-pub enum Division {
-    #[num_enum(default)]
-    None,
-    One,
-    Two,
-    Three,
-    Four,
-}
-
-impl fmt::Display for Division {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Division::None => "",
-                Division::One => " Div I",
-                Division::Two => " Div II",
-                Division::Three => " Div III",
-                Division::Four => " Div IV",
-            }
-        )
     }
 }
 

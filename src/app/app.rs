@@ -1,10 +1,10 @@
-use crate::hotkey;
-use crate::ranks::{EventRanks, Rank, RankAPI};
-use crate::rl_stats_api::{self, Platform, PlayerData, RLEvent, Team};
+use crate::app::hotkey;
+use crate::core::{Playlist, Rank};
+use crate::rl::{EventRanks, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api};
 use eframe::egui::{self, Color32};
 use std::sync::{Arc, mpsc};
+use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{fmt, thread};
 
 fn systemtime_since_epoch(time: SystemTime) -> u64 {
     time.duration_since(UNIX_EPOCH).unwrap().as_secs()
@@ -43,87 +43,6 @@ struct MatchInfo {
     pub players: Vec<MatchPlayer>,
     pub timestamp: SystemTime,
     pub winner: Team,
-}
-
-impl Rank {
-    pub fn to_image(&self) -> egui::ImageSource<'static> {
-        match self {
-            Rank::Unranked => egui::include_image!("../assets/Unranked_icon.png"),
-            Rank::Bronze1 => egui::include_image!("../assets/Bronze1_rank_icon.png"),
-            Rank::Bronze2 => egui::include_image!("../assets/Bronze2_rank_icon.png"),
-            Rank::Bronze3 => egui::include_image!("../assets/Bronze3_rank_icon.png"),
-            Rank::Silver1 => egui::include_image!("../assets/Silver1_rank_icon.png"),
-            Rank::Silver2 => egui::include_image!("../assets/Silver2_rank_icon.png"),
-            Rank::Silver3 => egui::include_image!("../assets/Silver3_rank_icon.png"),
-            Rank::Gold1 => egui::include_image!("../assets/Gold1_rank_icon.png"),
-            Rank::Gold2 => egui::include_image!("../assets/Gold2_rank_icon.png"),
-            Rank::Gold3 => egui::include_image!("../assets/Gold3_rank_icon.png"),
-            Rank::Plat1 => egui::include_image!("../assets/Platinum1_rank_icon.png"),
-            Rank::Plat2 => egui::include_image!("../assets/Platinum2_rank_icon.png"),
-            Rank::Plat3 => egui::include_image!("../assets/Platinum3_rank_icon.png"),
-            Rank::Diamond1 => egui::include_image!("../assets/Diamond1_rank_icon.png"),
-            Rank::Diamond2 => egui::include_image!("../assets/Diamond2_rank_icon.png"),
-            Rank::Diamond3 => egui::include_image!("../assets/Diamond3_rank_icon.png"),
-            Rank::Champ1 => egui::include_image!("../assets/Champion1_rank_icon.png"),
-            Rank::Champ2 => egui::include_image!("../assets/Champion2_rank_icon.png"),
-            Rank::Champ3 => egui::include_image!("../assets/Champion3_rank_icon.png"),
-            Rank::GC1 => egui::include_image!("../assets/Grand_Champion1_rank_icon.png"),
-            Rank::GC2 => egui::include_image!("../assets/Grand_Champion2_rank_icon.png"),
-            Rank::GC3 => egui::include_image!("../assets/Grand_Champion3_rank_icon.png"),
-            Rank::Ssl => egui::include_image!("../assets/Supersonic_Legend_rank_icon.png"),
-        }
-    }
-
-    pub fn to_color(&self) -> Color32 {
-        match self {
-            Rank::Unranked => Color32::DARK_GRAY,
-            Rank::Bronze1 | Rank::Bronze2 | Rank::Bronze3 => Color32::BROWN,
-            Rank::Silver1 | Rank::Silver2 | Rank::Silver3 => Color32::GRAY,
-            Rank::Gold1 | Rank::Gold2 | Rank::Gold3 => Color32::YELLOW,
-            Rank::Plat1 | Rank::Plat2 | Rank::Plat3 => Color32::LIGHT_BLUE,
-            Rank::Diamond1 | Rank::Diamond2 | Rank::Diamond3 => Color32::BLUE,
-            Rank::Champ1 | Rank::Champ2 | Rank::Champ3 => Color32::PURPLE,
-            Rank::GC1 | Rank::GC2 | Rank::GC3 => Color32::RED,
-            Rank::Ssl => Color32::WHITE,
-        }
-    }
-}
-
-#[derive(PartialEq)]
-enum Playlist {
-    Freeplay,
-    Ones,
-    Twos,
-    Threes,
-    Other,
-}
-
-impl Playlist {
-    fn from_player_count(player_count: usize) -> Playlist {
-        match player_count {
-            1 => Playlist::Freeplay,
-            2 => Playlist::Ones,
-            4 => Playlist::Twos,
-            6 => Playlist::Threes,
-            _ => Playlist::Other,
-        }
-    }
-}
-
-impl fmt::Display for Playlist {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Playlist::Ones => "1s",
-                Playlist::Twos => "2s",
-                Playlist::Threes => "3s",
-                Playlist::Freeplay => "Freeplay",
-                Playlist::Other => "Some",
-            }
-        )
-    }
 }
 
 fn center_layout<R>(
@@ -185,7 +104,7 @@ impl RlBuddyApp {
         });
 
         thread::spawn(move || {
-            let result = rl_stats_api::connect_to_stats_api(|event| {
+            let result = connect_to_stats_api(|event| {
                 rl_tx.send(event).unwrap();
                 ctx.request_repaint();
             });
@@ -429,7 +348,6 @@ impl<'a> PlayerTable<'a> {
             Playlist::Ones => skill.duels.as_ref(),
             Playlist::Twos => skill.doubles.as_ref(),
             Playlist::Threes => skill.standard.as_ref(),
-            _ => None,
         };
 
         match rank {
@@ -516,8 +434,12 @@ impl egui::Widget for PlayerTable<'_> {
                 ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
                 ui.end_row();
 
-                for player in self.players {
-                    self.render_player(ui, &playlist, player);
+                if let Some(playlist) = playlist {
+                    for player in self.players {
+                        self.render_player(ui, &playlist, player);
+                    }
+                } else {
+                    ui.spinner();
                 }
             })
             .response

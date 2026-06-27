@@ -1,9 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod hotkey;
-mod ranks;
-mod rl_stats_api;
+mod core;
+mod rl;
 
 use eframe::egui;
 
