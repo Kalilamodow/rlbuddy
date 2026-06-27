@@ -29,7 +29,7 @@ impl From<PlayerData> for MatchPlayer {
     }
 }
 
-fn sort_player_list(players: &mut Vec<MatchPlayer>) {
+fn sort_player_list(players: &mut [MatchPlayer]) {
     // group by team
     let our_team = players
         .iter()
@@ -236,12 +236,12 @@ impl eframe::App for RlBuddyApp {
                 RLEvent::SetPlayerList(mut new_players) => {
                     let Some(players) = self.current_players.as_mut() else {
                         self.current_players =
-                            Some(new_players.into_iter().map(|p| p.into()).collect());
+                            Some(new_players.into_iter().map(Into::into).collect());
                         return;
                     };
 
                     // bots all share the same id so replace it for comparisons
-                    for player_or_bot_hmm in new_players.iter_mut() {
+                    for player_or_bot_hmm in &mut new_players {
                         if player_or_bot_hmm.platform == Platform::Bot {
                             player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
                         }
@@ -358,7 +358,7 @@ impl<'a> PlayerTable<'a> {
                             egui::Image::new(Rank::Unranked.to_image())
                                 .fit_to_exact_size(egui::vec2(28.0, 28.0)),
                         )
-                        .on_hover_text(format!("Unranked in {}", playlist))
+                        .on_hover_text(format!("Unranked in {playlist}"))
                     } else {
                         ui.add(
                             egui::Image::new(rank.rank.to_image())
