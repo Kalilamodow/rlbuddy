@@ -22,6 +22,24 @@ fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
 }
 
+fn score_labels(ui: &mut egui::Ui, scores: &TeamScores, priority: Team) {
+    let blue_text = egui::RichText::new(scores.blue.to_string()).color(Color32::LIGHT_BLUE);
+    let orange_text = egui::RichText::new(scores.orange.to_string()).color(Color32::LIGHT_RED);
+
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        if priority == Team::Blue {
+            ui.label(blue_text);
+            ui.label("-");
+            ui.label(orange_text);
+        } else {
+            ui.label(orange_text);
+            ui.label("-");
+            ui.label(blue_text);
+        }
+    });
+}
+
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {
     pub left: bool,
@@ -37,20 +55,11 @@ impl From<PlayerData> for MatchPlayer {
     }
 }
 
-fn sort_player_list(players: &mut [MatchPlayer]) {
-    // group by team
-    let our_team = players
-        .iter()
-        .find(|p| p.data.is_self)
-        .map_or(Team::Blue, |p| p.data.team);
-    // != bc false comes first
-    players.sort_by_key(|p| p.data.team != our_team);
-}
-
 struct MatchInfo {
     pub players: Vec<MatchPlayer>,
     pub timestamp: SystemTime,
     pub score: TeamScores,
+    pub our_team: Team,
 }
 
 pub struct Matches {
@@ -58,6 +67,7 @@ pub struct Matches {
     player_ranks: RankAPI,
     current_players: Option<Vec<MatchPlayer>>,
     current_score: Option<TeamScores>,
+    our_team: Option<Team>,
     prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
 }
@@ -88,6 +98,7 @@ impl Matches {
             player_ranks: RankAPI::new(ctx, errors_tx),
             current_players: None,
             current_score: None,
+            our_team: None,
             prev_match_info: Vec::new(),
             overlay_tx,
         }
@@ -133,7 +144,10 @@ impl Matches {
             players.push(remaining_to_add.into());
         }
 
-        sort_player_list(players);
+        self.our_team = players.iter().find(|p| p.data.is_self).map(|p| p.data.team);
+
+        let our_team = self.our_team.unwrap_or(Team::Blue);
+        players.sort_by_key(|p| p.data.team != our_team);
     }
 
     pub fn logic(&mut self, _ctx: &egui::Context) {
@@ -160,9 +174,11 @@ impl Matches {
                                 players: players.clone(),
                                 timestamp: SystemTime::now(),
                                 score: self.current_score.take().unwrap_or_default(),
+                                our_team: self.our_team.unwrap_or(Team::Blue),
                             },
                         );
 
+                        self.our_team = None;
                         self.current_players = None;
                     }
                 }
@@ -175,7 +191,15 @@ impl egui::Widget for &Matches {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
             if let Some(current_players) = &self.current_players {
-                ui.label("Current match");
+                ui.horizontal(|ui| {
+                    ui.label("Current match");
+                    if let Some(scores) = &self.current_score
+                        && let Some(team) = self.our_team
+                    {
+                        score_labels(ui, scores, team);
+                    }
+                });
+
                 match current_players.len() {
                     0 => {
                         ui.label("No players");
@@ -199,27 +223,21 @@ impl egui::Widget for &Matches {
                     ui.add(egui::Separator::default().spacing(8.0));
 
                     ui.horizontal(|ui| {
-                        let winner_label = match prev_match.score.blue.cmp(&prev_match.score.orange)
-                        {
-                            Ordering::Greater => "Blue won",
-                            Ordering::Less => "Orange won",
-                            Ordering::Equal => "Tie",
+                        let winner = match prev_match.score.blue.cmp(&prev_match.score.orange) {
+                            Ordering::Greater => Some(Team::Blue),
+                            Ordering::Less => Some(Team::Orange),
+                            Ordering::Equal => None,
                         };
 
-                        ui.label(bold_text(winner_label));
+                        if let Some(winner) = winner {
+                            if winner == prev_match.our_team {
+                                ui.label(bold_text("Win"));
+                            } else {
+                                ui.label(bold_text("Loss"));
+                            }
+                        }
 
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 0.0;
-                            ui.label(
-                                egui::RichText::new(prev_match.score.blue.to_string())
-                                    .color(Color32::LIGHT_BLUE),
-                            );
-                            ui.label("-");
-                            ui.label(
-                                egui::RichText::new(prev_match.score.orange.to_string())
-                                    .color(Color32::LIGHT_RED),
-                            );
-                        });
+                        score_labels(ui, &prev_match.score, prev_match.our_team);
 
                         ui.label(format!(
                             "{} seconds ago",
