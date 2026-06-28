@@ -32,8 +32,11 @@ const URLS: [&str; 24] = [
     "https://static.wikia.nocookie.net/rocketleague/images/2/2d/Supersonic_Legend_rank_icon.png",
 ];
 
+// all the "png" URLs are actually webps btw
+
 fn download(url: &str, out_dir: &Path) {
-    let path = out_dir.join(url.split('/').next_back().unwrap());
+    let filename = Path::new(url.split('/').next_back().unwrap()).with_extension("webp");
+    let path = out_dir.join(filename);
     if path.exists() {
         return;
     }
