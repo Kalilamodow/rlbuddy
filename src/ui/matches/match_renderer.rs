@@ -1,7 +1,7 @@
 use super::core::{MatchInfo, MatchPlayer};
-use crate::app::matches::widget::format_seconds;
 use crate::core::{Playlist, Rank};
 use crate::rl::{EventRanks, Platform, RankAPI, Team, TeamScores};
+use crate::ui::matches::widget::format_seconds;
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;
 use std::sync::Arc;
