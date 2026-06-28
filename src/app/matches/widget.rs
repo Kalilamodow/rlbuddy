@@ -1,41 +1,18 @@
 // Displays the current and past matches
 
 use std::{
-    cmp::Ordering,
     sync::mpsc,
     thread,
     time::{Duration, SystemTime},
 };
 
-use eframe::egui::{self, Color32};
+use eframe::egui;
 
 use super::{
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
-    match_renderer::PlayerTable,
+    match_renderer::MatchRenderer,
 };
-use crate::rl::{Platform, PlayerData, RLEvent, RankAPI, Team, TeamScores, connect_to_stats_api};
-
-fn bold_text(text: impl Into<String>) -> egui::RichText {
-    egui::RichText::new(text).strong()
-}
-
-fn score_labels(ui: &mut egui::Ui, scores: &TeamScores, priority: Team) {
-    let blue_text = egui::RichText::new(scores.blue.to_string()).color(Color32::LIGHT_BLUE);
-    let orange_text = egui::RichText::new(scores.orange.to_string()).color(Color32::LIGHT_RED);
-
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        if priority == Team::Blue {
-            ui.label(blue_text);
-            ui.label("-");
-            ui.label(orange_text);
-        } else {
-            ui.label(orange_text);
-            ui.label("-");
-            ui.label(blue_text);
-        }
-    });
-}
+use crate::rl::{Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api};
 
 fn pluralize_ago(count: u64, word: &str, suffix: &str) -> String {
     format!(
@@ -199,11 +176,6 @@ impl egui::Widget for &Matches {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
             if let Some(current_match) = &self.current_match {
-                ui.horizontal(|ui| {
-                    ui.label("Current match");
-                    score_labels(ui, &current_match.score, current_match.our_team);
-                });
-
                 match current_match.players.len() {
                     0 => {
                         ui.label("No players");
@@ -212,7 +184,7 @@ impl egui::Widget for &Matches {
                         ui.label("In freeplay");
                     }
                     _ => {
-                        ui.add(PlayerTable::new(current_match, &self.player_ranks, true));
+                        ui.add(MatchRenderer::new(current_match, &self.player_ranks));
                     }
                 }
             } else {
@@ -220,43 +192,9 @@ impl egui::Widget for &Matches {
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let current_time = SystemTime::now();
                 for prev_match in &self.prev_match_info {
                     ui.add(egui::Separator::default().spacing(8.0));
-
-                    ui.horizontal(|ui| {
-                        if let Some(over) = &prev_match.finish {
-                            let winner = match over.winner {
-                                Some(winner) => Some(winner),
-                                None => match prev_match.score.blue.cmp(&prev_match.score.orange) {
-                                    Ordering::Greater => Some(Team::Blue),
-                                    Ordering::Less => Some(Team::Orange),
-                                    Ordering::Equal => None,
-                                },
-                            };
-
-                            if let Some(winner) = winner {
-                                if winner == prev_match.our_team {
-                                    ui.label(bold_text("Win"));
-                                } else {
-                                    ui.label(bold_text("Loss"));
-                                }
-                            }
-
-                            score_labels(ui, &prev_match.score, prev_match.our_team);
-
-                            let seconds_ago = current_time
-                                .duration_since(over.timestamp)
-                                .unwrap_or_default()
-                                .as_secs();
-
-                            let (formatted_time, update_after) = format_seconds(seconds_ago);
-                            ui.label(formatted_time);
-                            ui.ctx().request_repaint_after(update_after);
-                        };
-                    });
-
-                    ui.add(PlayerTable::new(prev_match, &self.player_ranks, false));
+                    ui.add(MatchRenderer::new(prev_match, &self.player_ranks));
                 }
             });
         })

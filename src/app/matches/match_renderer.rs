@@ -1,22 +1,61 @@
 use super::core::{MatchInfo, MatchPlayer};
+use crate::app::matches::widget::format_seconds;
 use crate::core::{Playlist, Rank};
-use crate::rl::{EventRanks, Platform, RankAPI, Team};
+use crate::rl::{EventRanks, Platform, RankAPI, Team, TeamScores};
 use eframe::egui::{self, Color32};
+use std::cmp::Ordering;
 use std::sync::Arc;
+use std::time::SystemTime;
 
-pub struct PlayerTable<'a> {
+pub struct MatchRenderer<'a> {
     match_info: &'a MatchInfo,
     ranks: &'a RankAPI,
-    show_all: bool,
 }
 
-impl<'a> PlayerTable<'a> {
-    pub fn new(match_info: &'a MatchInfo, ranks: &'a RankAPI, show_all: bool) -> PlayerTable<'a> {
-        PlayerTable {
-            match_info,
-            ranks,
-            show_all,
-        }
+impl<'a> MatchRenderer<'a> {
+    pub fn new(match_info: &'a MatchInfo, ranks: &'a RankAPI) -> MatchRenderer<'a> {
+        MatchRenderer { match_info, ranks }
+    }
+
+    fn render_header(&self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if let Some(finished) = &self.match_info.finish {
+                if let Some(winner) = finished.winner.or_else(|| {
+                    match self
+                        .match_info
+                        .score
+                        .blue
+                        .cmp(&self.match_info.score.orange)
+                    {
+                        Ordering::Greater => Some(Team::Blue),
+                        Ordering::Less => Some(Team::Orange),
+                        Ordering::Equal => None,
+                    }
+                }) {
+                    ui.label(bold_text(if winner == self.match_info.our_team {
+                        "Win"
+                    } else {
+                        "Loss"
+                    }));
+                }
+            } else {
+                ui.label("In progress");
+            }
+
+            score_labels(ui, &self.match_info.score, self.match_info.our_team);
+
+            if let Some(finished) = &self.match_info.finish {
+                let (text, refresh_in) = format_seconds(
+                    SystemTime::now()
+                        .duration_since(finished.timestamp)
+                        .unwrap()
+                        .as_secs(),
+                );
+
+                ui.label(text);
+                ui.request_repaint_after(refresh_in);
+            }
+        });
     }
 
     fn render_player(
@@ -35,7 +74,7 @@ impl<'a> PlayerTable<'a> {
         if let Some(skill) = &skill
             && let Some(playlist) = playlist
         {
-            PlayerTable::render_player_rank_cell(ui, playlist, skill);
+            MatchRenderer::render_player_rank_cell(ui, playlist, skill);
         } else {
             center_label(ui, "-");
         }
@@ -63,7 +102,7 @@ impl<'a> PlayerTable<'a> {
             );
 
             if let Some(skill) = &skill {
-                PlayerTable::render_rank_list(ui, match_player.left, skill);
+                MatchRenderer::render_rank_list(ui, match_player.left, skill);
             }
         });
 
@@ -144,14 +183,14 @@ impl<'a> PlayerTable<'a> {
     }
 }
 
-impl egui::Widget for PlayerTable<'_> {
+impl egui::Widget for MatchRenderer<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let playlist =
             Playlist::from_player_count(self.match_info.players.iter().filter(|p| !p.left).count());
 
-        // 3 columns + allocate_space hack
-        // https://github.com/emilk/egui/issues/3928
-        egui::Grid::new(&self.match_info.started_at)
+        self.render_header(ui);
+
+        egui::Grid::new(self.match_info.started_at)
             .spacing(egui::vec2(8.0, 12.0))
             .striped(true)
             .show(ui, |ui| {
@@ -161,18 +200,36 @@ impl egui::Widget for PlayerTable<'_> {
 
                 ui.end_row();
 
-                if self.show_all {
-                    for player in &self.match_info.players {
-                        self.render_player(ui, &playlist, player);
-                    }
-                } else {
+                if self.match_info.finish.is_some() {
                     for player in filter_useless_bots(&self.match_info.players) {
                         self.render_player(ui, &playlist, player);
                     }
-                };
+                } else {
+                    for player in &self.match_info.players {
+                        self.render_player(ui, &playlist, player);
+                    }
+                }
             })
             .response
     }
+}
+
+fn score_labels(ui: &mut egui::Ui, scores: &TeamScores, priority: Team) {
+    let blue_text = egui::RichText::new(scores.blue.to_string()).color(Color32::LIGHT_BLUE);
+    let orange_text = egui::RichText::new(scores.orange.to_string()).color(Color32::LIGHT_RED);
+
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        if priority == Team::Blue {
+            ui.label(blue_text);
+            ui.label("-");
+            ui.label(orange_text);
+        } else {
+            ui.label(orange_text);
+            ui.label("-");
+            ui.label(blue_text);
+        }
+    });
 }
 
 fn center_layout<R>(
