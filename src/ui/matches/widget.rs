@@ -14,31 +14,6 @@ use super::{
 };
 use crate::rl::{Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api};
 
-fn pluralize_ago(count: u64, word: &str, suffix: &str) -> String {
-    format!(
-        "{count} {word}{} {suffix}",
-        if count == 1 { "" } else { "s" }
-    )
-}
-
-const ONE_SECOND: Duration = Duration::from_secs(1);
-const ONE_MINUTE: Duration = Duration::from_mins(1);
-
-pub fn format_seconds(seconds: u64) -> (String, Duration) {
-    match seconds {
-        ..60 => (pluralize_ago(seconds, "second", "ago"), ONE_SECOND),
-        60..3600 => (pluralize_ago(seconds / 60, "minute", "ago"), ONE_MINUTE),
-        3600.. => (
-            format!(
-                "{}{}",
-                pluralize_ago(seconds / 3600, "hour", ""),
-                pluralize_ago((seconds % 3600) / 60, "minute", "ago")
-            ),
-            ONE_MINUTE,
-        ),
-    }
-}
-
 fn diff_player_list(current: &mut Vec<MatchPlayer>, mut new_players: Vec<PlayerData>) {
     // bots all share the same id so replace it for comparisons
     for player_or_bot_hmm in &mut new_players {
