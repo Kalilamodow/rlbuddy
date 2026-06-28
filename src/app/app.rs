@@ -1,5 +1,4 @@
-use crate::app::hotkey;
-use crate::app::matches::Matches;
+use super::{hotkey, matches::Matches};
 use eframe::egui;
 use std::sync::mpsc;
 use std::thread;

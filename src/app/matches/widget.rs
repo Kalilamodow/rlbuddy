@@ -9,10 +9,11 @@ use std::{
 
 use eframe::egui::{self, Color32};
 
-use crate::{
-    app::player_list::PlayerTable,
-    rl::{Platform, PlayerData, RLEvent, RankAPI, Team, TeamScores, connect_to_stats_api},
+use super::{
+    core::{MatchInfo, MatchOverInfo, MatchPlayer},
+    match_renderer::PlayerTable,
 };
+use crate::rl::{Platform, PlayerData, RLEvent, RankAPI, Team, TeamScores, connect_to_stats_api};
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
@@ -84,48 +85,6 @@ fn diff_player_list(current: &mut Vec<MatchPlayer>, mut new_players: Vec<PlayerD
 
     for remaining_to_add in new_players {
         current.push(remaining_to_add.into());
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MatchPlayer {
-    pub left: bool,
-    pub data: PlayerData,
-}
-
-impl From<PlayerData> for MatchPlayer {
-    fn from(value: PlayerData) -> Self {
-        MatchPlayer {
-            left: false,
-            data: value,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MatchOverInfo {
-    pub timestamp: SystemTime,
-    pub winner: Option<Team>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MatchInfo {
-    pub players: Vec<MatchPlayer>,
-    pub score: TeamScores,
-    pub our_team: Team,
-    pub finish: Option<MatchOverInfo>,
-    pub started_at: SystemTime,
-}
-
-impl Default for MatchInfo {
-    fn default() -> Self {
-        MatchInfo {
-            players: Vec::new(),
-            score: TeamScores { blue: 0, orange: 0 },
-            our_team: Team::Blue,
-            finish: None,
-            started_at: SystemTime::now(),
-        }
     }
 }
 

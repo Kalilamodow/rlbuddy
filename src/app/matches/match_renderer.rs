@@ -1,4 +1,4 @@
-use crate::app::matches::{MatchInfo, MatchPlayer};
+use super::core::{MatchInfo, MatchPlayer};
 use crate::core::{Playlist, Rank};
 use crate::rl::{EventRanks, Platform, RankAPI, Team};
 use eframe::egui::{self, Color32};
