@@ -14,10 +14,8 @@ impl Playlist {
     pub fn from_player_count(player_count: usize) -> Option<Playlist> {
         match player_count {
             2 => Some(Playlist::Ones),
-            3 => Some(Playlist::Twos),
-            4 => Some(Playlist::Twos),
-            5 => Some(Playlist::Threes),
-            6 => Some(Playlist::Threes),
+            3 | 4 => Some(Playlist::Twos),
+            5 | 6 => Some(Playlist::Threes),
             _ => None,
         }
     }

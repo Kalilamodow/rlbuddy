@@ -117,7 +117,7 @@ impl Matches {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
                 RLEvent::MatchStart => {
-                    self.current_match = Some(Default::default());
+                    self.current_match = Some(MatchInfo::default());
                     self.popup();
                 }
                 RLEvent::MatchOver(winner) => {
@@ -139,14 +139,14 @@ impl Matches {
                         .is_none_or(|m| m.players.len() <= 1)
                     {
                         return;
-                    };
+                    }
 
                     self.prev_match_info
                         .insert(0, self.current_match.take().unwrap());
                 }
                 RLEvent::Update(state) => {
                     if self.current_match.is_none() {
-                        self.current_match = Some(Default::default());
+                        self.current_match = Some(MatchInfo::default());
                     }
 
                     let Some(current_match) = self.current_match.as_mut() else {
@@ -160,8 +160,7 @@ impl Matches {
                         .players
                         .iter()
                         .find(|p| p.data.is_self)
-                        .map(|p| p.data.team)
-                        .unwrap_or(Team::Blue);
+                        .map_or(Team::Blue, |p| p.data.team);
 
                     current_match
                         .players

@@ -61,7 +61,7 @@ impl<'a> MatchRenderer<'a> {
     fn render_player(
         &self,
         ui: &mut egui::Ui,
-        playlist: &Option<Playlist>,
+        playlist: Option<&Playlist>,
         match_player: &MatchPlayer,
     ) {
         let skill = if match_player.data.platform == Platform::Bot {
@@ -202,11 +202,11 @@ impl egui::Widget for MatchRenderer<'_> {
 
                 if self.match_info.finish.is_some() {
                     for player in filter_useless_bots(&self.match_info.players) {
-                        self.render_player(ui, &playlist, player);
+                        self.render_player(ui, playlist.as_ref(), player);
                     }
                 } else {
                     for player in &self.match_info.players {
-                        self.render_player(ui, &playlist, player);
+                        self.render_player(ui, playlist.as_ref(), player);
                     }
                 }
             })

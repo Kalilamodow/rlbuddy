@@ -270,7 +270,7 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
             "MatchEnded" => {
                 let data: MatchEndedEventData = serde_json::from_str(&event.data)
                     .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
-                on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)))
+                on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)));
             }
             "MatchDestroyed" => {
                 on_event(RLEvent::MatchLeft);
