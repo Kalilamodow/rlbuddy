@@ -4,7 +4,7 @@ use std::{
     cmp::Ordering,
     sync::mpsc,
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 
 use eframe::egui::{self, Color32};
@@ -13,10 +13,6 @@ use crate::{
     app::player_list::PlayerTable,
     rl::{Platform, PlayerData, RLEvent, RankAPI, Team, TeamScores, connect_to_stats_api},
 };
-
-fn systemtime_since_epoch(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH).unwrap().as_secs()
-}
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
@@ -65,6 +61,32 @@ pub fn format_seconds(seconds: u64) -> (String, Duration) {
     }
 }
 
+fn diff_player_list(current: &mut Vec<MatchPlayer>, mut new_players: Vec<PlayerData>) {
+    // bots all share the same id so replace it for comparisons
+    for player_or_bot_hmm in &mut new_players {
+        if player_or_bot_hmm.platform == Platform::Bot {
+            player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
+        }
+    }
+
+    for player in current.iter_mut() {
+        let updated_pos = new_players
+            .iter()
+            .position(|p| p.platform_id == player.data.platform_id);
+        if let Some(updated_pos) = updated_pos {
+            let updated = new_players.swap_remove(updated_pos);
+            player.data = updated;
+            player.left = false;
+        } else {
+            player.left = true;
+        }
+    }
+
+    for remaining_to_add in new_players {
+        current.push(remaining_to_add.into());
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {
     pub left: bool,
@@ -80,19 +102,37 @@ impl From<PlayerData> for MatchPlayer {
     }
 }
 
-struct MatchInfo {
-    pub players: Vec<MatchPlayer>,
+#[derive(Debug, Clone)]
+pub struct MatchOverInfo {
     pub timestamp: SystemTime,
+    pub winner: Option<Team>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchInfo {
+    pub players: Vec<MatchPlayer>,
     pub score: TeamScores,
     pub our_team: Team,
+    pub finish: Option<MatchOverInfo>,
+    pub started_at: SystemTime,
+}
+
+impl Default for MatchInfo {
+    fn default() -> Self {
+        MatchInfo {
+            players: Vec::new(),
+            score: TeamScores { blue: 0, orange: 0 },
+            our_team: Team::Blue,
+            finish: None,
+            started_at: SystemTime::now(),
+        }
+    }
 }
 
 pub struct Matches {
     rl_rx: mpsc::Receiver<RLEvent>,
     player_ranks: RankAPI,
-    current_players: Option<Vec<MatchPlayer>>,
-    current_score: Option<TeamScores>,
-    our_team: Option<Team>,
+    current_match: Option<MatchInfo>,
     prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
 }
@@ -121,9 +161,7 @@ impl Matches {
         Matches {
             rl_rx,
             player_ranks: RankAPI::new(ctx, errors_tx),
-            current_players: None,
-            current_score: None,
-            our_team: None,
+            current_match: None,
             prev_match_info: Vec::new(),
             overlay_tx,
         }
@@ -139,73 +177,59 @@ impl Matches {
         });
     }
 
-    fn diff_player_list(&mut self, mut new_players: Vec<PlayerData>) {
-        let Some(players) = self.current_players.as_mut() else {
-            self.current_players = Some(new_players.into_iter().map(Into::into).collect());
-            return;
-        };
-
-        // bots all share the same id so replace it for comparisons
-        for player_or_bot_hmm in &mut new_players {
-            if player_or_bot_hmm.platform == Platform::Bot {
-                player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
-            }
-        }
-
-        for player in players.iter_mut() {
-            let updated_pos = new_players
-                .iter()
-                .position(|p| p.platform_id == player.data.platform_id);
-            if let Some(updated_pos) = updated_pos {
-                let updated = new_players.swap_remove(updated_pos);
-                player.data = updated;
-                player.left = false;
-            } else {
-                player.left = true;
-            }
-        }
-
-        for remaining_to_add in new_players {
-            players.push(remaining_to_add.into());
-        }
-
-        self.our_team = players.iter().find(|p| p.data.is_self).map(|p| p.data.team);
-
-        let our_team = self.our_team.unwrap_or(Team::Blue);
-        players.sort_by_key(|p| p.data.team != our_team);
-    }
-
     pub fn logic(&mut self, _ctx: &egui::Context) {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
-                RLEvent::SetPlayerList(new_players) => {
-                    self.diff_player_list(new_players);
-                }
-                RLEvent::SetScore(score) => {
-                    self.current_score = Some(score);
-                }
                 RLEvent::MatchStart => {
+                    self.current_match = Some(Default::default());
                     self.popup();
                 }
-                RLEvent::MatchEnd => {
-                    if let Some(players) = &self.current_players {
-                        if players.len() <= 1 {
+                RLEvent::MatchOver(winner) => {
+                    if let Some(current_match) = self.current_match.as_mut() {
+                        if current_match.players.len() <= 1 {
                             return;
                         }
 
-                        self.prev_match_info.insert(
-                            0,
-                            MatchInfo {
-                                players: players.clone(),
-                                timestamp: SystemTime::now(),
-                                score: self.current_score.take().unwrap_or_default(),
-                                our_team: self.our_team.unwrap_or(Team::Blue),
-                            },
-                        );
-
-                        self.our_team = None;
-                        self.current_players = None;
+                        current_match.finish = Some(MatchOverInfo {
+                            timestamp: SystemTime::now(),
+                            winner: Some(winner),
+                        });
                     }
+                }
+                RLEvent::MatchLeft => {
+                    if self
+                        .current_match
+                        .as_ref()
+                        .is_none_or(|m| m.players.len() <= 1)
+                    {
+                        return;
+                    };
+
+                    self.prev_match_info
+                        .insert(0, self.current_match.take().unwrap());
+                }
+                RLEvent::Update(state) => {
+                    if self.current_match.is_none() {
+                        self.current_match = Some(Default::default());
+                    }
+
+                    let Some(current_match) = self.current_match.as_mut() else {
+                        return;
+                    };
+
+                    current_match.score = state.score;
+                    diff_player_list(&mut current_match.players, state.players);
+
+                    current_match.our_team = current_match
+                        .players
+                        .iter()
+                        .find(|p| p.data.is_self)
+                        .map(|p| p.data.team)
+                        .unwrap_or(Team::Blue);
+
+                    current_match
+                        .players
+                        .sort_by_key(|p| p.data.team != current_match.our_team);
                 }
             }
         }
@@ -215,17 +239,13 @@ impl Matches {
 impl egui::Widget for &Matches {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
-            if let Some(current_players) = &self.current_players {
+            if let Some(current_match) = &self.current_match {
                 ui.horizontal(|ui| {
                     ui.label("Current match");
-                    if let Some(scores) = &self.current_score
-                        && let Some(team) = self.our_team
-                    {
-                        score_labels(ui, scores, team);
-                    }
+                    score_labels(ui, &current_match.score, current_match.our_team);
                 });
 
-                match current_players.len() {
+                match current_match.players.len() {
                     0 => {
                         ui.label("No players");
                     }
@@ -233,14 +253,11 @@ impl egui::Widget for &Matches {
                         ui.label("In freeplay");
                     }
                     _ => {
-                        ui.add(PlayerTable::new(
-                            current_players,
-                            "current match",
-                            &self.player_ranks,
-                            true,
-                        ));
+                        ui.add(PlayerTable::new(current_match, &self.player_ranks, true));
                     }
                 }
+            } else {
+                ui.label("Not in a match");
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -249,40 +266,38 @@ impl egui::Widget for &Matches {
                     ui.add(egui::Separator::default().spacing(8.0));
 
                     ui.horizontal(|ui| {
-                        let winner = match prev_match.score.blue.cmp(&prev_match.score.orange) {
-                            Ordering::Greater => Some(Team::Blue),
-                            Ordering::Less => Some(Team::Orange),
-                            Ordering::Equal => None,
-                        };
+                        if let Some(over) = &prev_match.finish {
+                            let winner = match over.winner {
+                                Some(winner) => Some(winner),
+                                None => match prev_match.score.blue.cmp(&prev_match.score.orange) {
+                                    Ordering::Greater => Some(Team::Blue),
+                                    Ordering::Less => Some(Team::Orange),
+                                    Ordering::Equal => None,
+                                },
+                            };
 
-                        if let Some(winner) = winner {
-                            if winner == prev_match.our_team {
-                                ui.label(bold_text("Win"));
-                            } else {
-                                ui.label(bold_text("Loss"));
+                            if let Some(winner) = winner {
+                                if winner == prev_match.our_team {
+                                    ui.label(bold_text("Win"));
+                                } else {
+                                    ui.label(bold_text("Loss"));
+                                }
                             }
-                        }
 
-                        score_labels(ui, &prev_match.score, prev_match.our_team);
+                            score_labels(ui, &prev_match.score, prev_match.our_team);
 
-                        let seconds_ago = current_time
-                            .duration_since(prev_match.timestamp)
-                            .unwrap_or_default()
-                            .as_secs();
+                            let seconds_ago = current_time
+                                .duration_since(over.timestamp)
+                                .unwrap_or_default()
+                                .as_secs();
 
-                        let (formatted_time, update_after) = format_seconds(seconds_ago);
-                        ui.label(formatted_time);
-                        ui.ctx().request_repaint_after(update_after);
+                            let (formatted_time, update_after) = format_seconds(seconds_ago);
+                            ui.label(formatted_time);
+                            ui.ctx().request_repaint_after(update_after);
+                        };
                     });
 
-                    ui.add(PlayerTable::new(
-                        &prev_match.players,
-                        systemtime_since_epoch(prev_match.timestamp)
-                            .to_string()
-                            .as_str(),
-                        &self.player_ranks,
-                        false,
-                    ));
+                    ui.add(PlayerTable::new(prev_match, &self.player_ranks, false));
                 }
             });
         })

@@ -53,7 +53,7 @@ struct UpdateStateEventData {
     game: StatsApiGameData,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TeamScores {
     pub blue: u8,
     pub orange: u8,
@@ -134,6 +134,12 @@ impl fmt::Display for Team {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct MatchEndedEventData {
+    winner_team_num: u8,
+}
+
 #[derive(Debug, Clone)]
 pub struct PlayerData {
     pub name: String,
@@ -189,11 +195,17 @@ impl fmt::Display for StatsApiError {
     }
 }
 
+#[derive(Debug)]
+pub struct MatchUpdate {
+    pub score: TeamScores,
+    pub players: Vec<PlayerData>,
+}
+
 pub enum RLEvent {
-    SetPlayerList(Vec<PlayerData>),
-    SetScore(TeamScores),
+    Update(MatchUpdate),
     MatchStart,
-    MatchEnd,
+    MatchOver(Team), // winner
+    MatchLeft,
 }
 
 // cant use connect_timeout bc it just errors instead of waiting when the
@@ -210,7 +222,6 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
     let mut read_buffer = vec![0u8; 4096];
 
     let mut tcp = connect_forever();
-    on_event(RLEvent::SetPlayerList(Vec::new()));
 
     // MatchInitialized doesnt fire in private matches for some reason
     // so listen for match created then the first countdown is the "game start"
@@ -239,14 +250,15 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
                 let data: UpdateStateEventData = serde_json::from_str(&event.data)
                     .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
 
-                on_event(RLEvent::SetScore(data.game.scores()));
-                on_event(RLEvent::SetPlayerList(
-                    data.players
+                on_event(RLEvent::Update(MatchUpdate {
+                    score: data.game.scores(),
+                    players: data
+                        .players
                         .into_iter()
                         .enumerate()
                         .filter_map(parse_stats_api_player)
                         .collect(),
-                ));
+                }));
             }
             "MatchCreated" => {
                 match_created_event_happened = true;
@@ -255,8 +267,13 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiE
                 match_created_event_happened = false;
                 on_event(RLEvent::MatchStart);
             }
+            "MatchEnded" => {
+                let data: MatchEndedEventData = serde_json::from_str(&event.data)
+                    .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
+                on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)))
+            }
             "MatchDestroyed" => {
-                on_event(RLEvent::MatchEnd);
+                on_event(RLEvent::MatchLeft);
             }
             _ => {}
         }

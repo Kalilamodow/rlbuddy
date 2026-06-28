@@ -1,26 +1,19 @@
-use crate::app::matches::MatchPlayer;
+use crate::app::matches::{MatchInfo, MatchPlayer};
 use crate::core::{Playlist, Rank};
 use crate::rl::{EventRanks, Platform, RankAPI, Team};
 use eframe::egui::{self, Color32};
 use std::sync::Arc;
 
 pub struct PlayerTable<'a> {
-    players: &'a Vec<MatchPlayer>,
-    id: &'a str,
+    match_info: &'a MatchInfo,
     ranks: &'a RankAPI,
     show_all: bool,
 }
 
 impl<'a> PlayerTable<'a> {
-    pub fn new(
-        players: &'a Vec<MatchPlayer>,
-        id: &'a str,
-        ranks: &'a RankAPI,
-        show_all: bool,
-    ) -> PlayerTable<'a> {
+    pub fn new(match_info: &'a MatchInfo, ranks: &'a RankAPI, show_all: bool) -> PlayerTable<'a> {
         PlayerTable {
-            players,
-            id,
+            match_info,
             ranks,
             show_all,
         }
@@ -153,11 +146,12 @@ impl<'a> PlayerTable<'a> {
 
 impl egui::Widget for PlayerTable<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let playlist = Playlist::from_player_count(self.players.iter().filter(|p| !p.left).count());
+        let playlist =
+            Playlist::from_player_count(self.match_info.players.iter().filter(|p| !p.left).count());
 
         // 3 columns + allocate_space hack
         // https://github.com/emilk/egui/issues/3928
-        egui::Grid::new(self.id)
+        egui::Grid::new(&self.match_info.started_at)
             .spacing(egui::vec2(8.0, 12.0))
             .striped(true)
             .show(ui, |ui| {
@@ -168,11 +162,11 @@ impl egui::Widget for PlayerTable<'_> {
                 ui.end_row();
 
                 if self.show_all {
-                    for player in self.players {
+                    for player in &self.match_info.players {
                         self.render_player(ui, &playlist, player);
                     }
                 } else {
-                    for player in filter_useless_bots(self.players) {
+                    for player in filter_useless_bots(&self.match_info.players) {
                         self.render_player(ui, &playlist, player);
                     }
                 };
