@@ -75,7 +75,6 @@ impl<'a> PlayerTable<'a> {
         });
 
         center_label(ui, match_player.data.score.to_string());
-        ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
         ui.end_row();
     }
 
@@ -161,13 +160,11 @@ impl egui::Widget for PlayerTable<'_> {
         egui::Grid::new(self.id)
             .spacing(egui::vec2(8.0, 12.0))
             .striped(true)
-            .num_columns(3)
             .show(ui, |ui| {
                 center_label(ui, bold_text("Rank"));
                 ui.label(bold_text("Player"));
                 center_label(ui, bold_text("Score"));
 
-                ui.allocate_space(egui::vec2(ui.available_width(), 0.0));
                 ui.end_row();
 
                 if self.show_all {
