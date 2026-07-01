@@ -114,6 +114,13 @@ impl<'a> MatchRenderer<'a> {
         });
 
         center_label(ui, match_player.data.score.to_string());
+
+        if let Some(trn_link) = match_player.trn_link() {
+            if ui.button("TRN").clicked() {
+                let _ = webbrowser::open(&trn_link);
+            }
+        }
+
         ui.end_row();
     }
 
@@ -204,6 +211,7 @@ impl egui::Widget for MatchRenderer<'_> {
                 center_label(ui, bold_text("Rank"));
                 ui.label(bold_text("Player"));
                 center_label(ui, bold_text("Score"));
+                ui.label(""); // trn button
 
                 ui.end_row();
 
