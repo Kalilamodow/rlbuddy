@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.34.3", features = ["glow"] }
+eframe = { version = "0.34.3", features = ["glow", "persistence"] }
 num_enum = "0.7.6"
 rdev = "0.5.3"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -1,4 +1,4 @@
-use crate::ui::settings::SettingsWidget;
+use crate::ui::settings::{SettingsState, SettingsWidget};
 
 use super::{hotkey, matches::Matches};
 use eframe::egui;
@@ -48,7 +48,14 @@ impl RlBuddyApp {
         let (errors_tx, errors_rx) = mpsc::channel();
         let (overlay_tx, overlay_rx) = mpsc::channel();
 
-        let settings = SettingsWidget::new();
+        let settings = if let Some(storage) = cc.storage
+            && let Some(existing_state) =
+                eframe::get_value::<SettingsState>(storage, eframe::APP_KEY)
+        {
+            SettingsWidget::from_existing(existing_state)
+        } else {
+            SettingsWidget::default()
+        };
 
         let overlay_tx_for_hotkey = overlay_tx.clone();
         let ctx_for_hotkey = ctx.clone();
@@ -114,6 +121,10 @@ impl RlBuddyApp {
 }
 
 impl eframe::App for RlBuddyApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, &self.settings.clone_state());
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Ok(new_error) = self.error_receiver.try_recv() {
             self.current_error = Some(new_error);

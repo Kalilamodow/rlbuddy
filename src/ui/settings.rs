@@ -1,10 +1,12 @@
 use rdev::Key;
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
 use eframe::egui;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Hotkey {
+    #[default]
     Alt,
     LShift,
     LCtrl,
@@ -37,23 +39,17 @@ impl Hotkey {
     }
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct SettingsState {
     pub hotkey: Hotkey,
 }
 
+#[derive(Debug, Default)]
 pub struct SettingsWidget {
     settings: Arc<RwLock<SettingsState>>,
 }
 
 impl SettingsWidget {
-    pub fn new() -> SettingsWidget {
-        SettingsWidget {
-            settings: Arc::new(RwLock::new(SettingsState {
-                hotkey: Hotkey::Tab,
-            })),
-        }
-    }
-
     pub fn from_existing(state: SettingsState) -> SettingsWidget {
         SettingsWidget {
             settings: Arc::new(RwLock::new(state)),
