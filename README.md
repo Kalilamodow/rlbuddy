@@ -4,7 +4,7 @@ An overlay which displays the ranks of everyone in your lobby. (and more coming 
 
 <img src="demo.jpeg">
 
-> usage in casual (outdated)
+> usage in casual
 
 ## setup
 
