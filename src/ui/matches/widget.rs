@@ -14,7 +14,6 @@ use super::{
     match_renderer::MatchRenderer,
 };
 use crate::{
-    core::Playlist,
     discord,
     rl::{NameAPI, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api},
 };
@@ -102,15 +101,7 @@ impl Matches {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
                 RLEvent::MatchStart => {
-                    if let Some(current_match) = &self.current_match {
-                        let mut info = MatchInfo::default();
-                        info.playlist = Playlist::from_player_count(
-                            current_match.players.iter().filter(|p| !p.left).count(),
-                        );
-                        self.current_match = Some(info);
-                    } else {
-                        self.current_match = Some(MatchInfo::default());
-                    }
+                    self.current_match = Some(MatchInfo::default());
                     self.popup();
                 }
                 RLEvent::MatchOver(winner) => {
@@ -147,6 +138,8 @@ impl Matches {
                         return;
                     };
 
+                    current_match.max_active_players =
+                        current_match.max_active_players.max(state.players.len());
                     current_match.score = state.score;
                     diff_player_list(&mut current_match.players, state.players);
 

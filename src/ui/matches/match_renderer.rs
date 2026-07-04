@@ -118,15 +118,18 @@ impl<'a> MatchRenderer<'a> {
     }
 
     fn render_player_rank_cell(&mut self, ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
-        let Some((playlist, rank)) = self.match_info.playlist.as_ref().and_then(|playlist| {
-            let rank = match playlist {
-                Playlist::Ones => skill.duels.as_ref(),
-                Playlist::Twos => skill.doubles.as_ref(),
-                Playlist::Threes => skill.standard.as_ref(),
-            };
+        let Some(playlist) = Playlist::from_player_count(self.match_info.max_active_players) else {
+            center_label(ui, "-");
+            return;
+        };
 
-            rank.map(|rank| (playlist, rank))
-        }) else {
+        let rank = match playlist {
+            Playlist::Ones => skill.duels.as_ref(),
+            Playlist::Twos => skill.doubles.as_ref(),
+            Playlist::Threes => skill.standard.as_ref(),
+        };
+
+        let Some(rank) = rank else {
             center_label(ui, "-");
             return;
         };
