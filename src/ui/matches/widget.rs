@@ -1,6 +1,7 @@
 // Displays the current and past matches
 
 use std::{
+    cmp::Ordering,
     sync::mpsc,
     thread,
     time::{Duration, SystemTime},
@@ -14,6 +15,7 @@ use super::{
 };
 use crate::{
     core::Playlist,
+    discord,
     rl::{NameAPI, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api},
 };
 
@@ -51,6 +53,7 @@ pub struct Matches {
     rl_rx: mpsc::Receiver<RLEvent>,
     player_ranks: RankAPI,
     player_names: NameAPI,
+    rpc: discord::RichPresence,
     current_match: Option<MatchInfo>,
     prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
@@ -75,6 +78,7 @@ impl Matches {
 
         Matches {
             rl_rx,
+            rpc: discord::RichPresence::new(),
             player_ranks: RankAPI::new(ctx.clone(), errors_tx),
             player_names: NameAPI::new(ctx.clone()),
             current_match: None,
@@ -122,6 +126,7 @@ impl Matches {
                     }
                 }
                 RLEvent::MatchLeft => {
+                    self.rpc.set(discord::State::Lobby);
                     if self
                         .current_match
                         .as_ref()
@@ -160,6 +165,26 @@ impl Matches {
                     current_match
                         .players
                         .sort_by_key(|p| p.data.team != current_match.our_team);
+
+                    if current_match.players.len() == 1 {
+                        self.rpc.set(discord::State::Training);
+                    } else {
+                        let (our, theirs) = match current_match.our_team {
+                            Team::Blue => (current_match.score.blue, current_match.score.orange),
+                            Team::Orange => (current_match.score.orange, current_match.score.blue),
+                        };
+                        let winning = match our.cmp(&theirs) {
+                            Ordering::Greater => discord::WinState::Winning,
+                            Ordering::Less => discord::WinState::Losing,
+                            Ordering::Equal => discord::WinState::Tied,
+                        };
+
+                        self.rpc.set(discord::State::InGame(discord::Scores {
+                            blue: current_match.score.blue,
+                            orange: current_match.score.orange,
+                            winning,
+                        }));
+                    }
                 }
                 RLEvent::Connected => {
                     self.connected_to_rl = true;
