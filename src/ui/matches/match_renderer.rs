@@ -1,6 +1,5 @@
 use super::core::{MatchInfo, MatchPlayer};
-use crate::core::{Playlist, Rank};
-use crate::rl::{EventRanks, Platform, RankAPI, Team, TeamScores};
+use crate::rl::{EventRanks, Platform, Playlist, Rank, RankAPI, Team, TeamScores};
 
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;

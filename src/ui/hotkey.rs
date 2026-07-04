@@ -6,7 +6,7 @@ use std::{
 use eframe::egui;
 use rdev::{Event, EventType, Key};
 
-use crate::ui::settings::SettingsState;
+use super::settings::SettingsState;
 
 #[derive(Default)]
 struct HotkeyState {

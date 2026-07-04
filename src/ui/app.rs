@@ -1,6 +1,8 @@
-use crate::ui::settings::{SettingsState, SettingsWidget};
-
-use super::{hotkey, matches::Matches};
+use super::{
+    hotkey,
+    matches::Matches,
+    settings::{SettingsState, SettingsWidget},
+};
 use eframe::egui;
 use std::collections::HashSet;
 use std::sync::mpsc;

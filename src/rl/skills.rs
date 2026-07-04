@@ -8,7 +8,7 @@ use eframe::egui;
 use num_enum::TryFromPrimitive;
 use serde::Deserialize;
 
-use crate::core::{Division, Playlist, Rank};
+use super::{Division, Playlist, Rank};
 
 const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
