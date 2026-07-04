@@ -58,12 +58,7 @@ impl<'a> MatchRenderer<'a> {
         });
     }
 
-    fn render_player(
-        &self,
-        ui: &mut egui::Ui,
-        playlist: Option<&Playlist>,
-        match_player: &MatchPlayer,
-    ) {
+    fn render_player(&mut self, ui: &mut egui::Ui, match_player: &MatchPlayer) {
         let skill = if match_player.data.platform == Platform::Bot {
             None
         } else {
@@ -71,10 +66,8 @@ impl<'a> MatchRenderer<'a> {
         };
 
         // rank in this gamemode
-        if let Some(skill) = &skill
-            && let Some(playlist) = playlist
-        {
-            MatchRenderer::render_player_rank_cell(ui, playlist, skill);
+        if let Some(skill) = &skill {
+            self.render_player_rank_cell(ui, skill);
         } else {
             center_label(ui, "-");
         }
@@ -124,7 +117,11 @@ impl<'a> MatchRenderer<'a> {
         ui.end_row();
     }
 
-    fn render_player_rank_cell(ui: &mut egui::Ui, playlist: &Playlist, skill: &Arc<EventRanks>) {
+    fn render_player_rank_cell(&mut self, ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
+        let Some(playlist) = &self.match_info.playlist else {
+            return;
+        };
+
         let rank = match playlist {
             Playlist::Ones => skill.duels.as_ref(),
             Playlist::Twos => skill.doubles.as_ref(),
@@ -198,10 +195,7 @@ impl<'a> MatchRenderer<'a> {
 }
 
 impl egui::Widget for MatchRenderer<'_> {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let playlist =
-            Playlist::from_player_count(self.match_info.players.iter().filter(|p| !p.left).count());
-
+    fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
         self.render_header(ui);
 
         egui::Grid::new(self.match_info.started_at)
@@ -217,11 +211,11 @@ impl egui::Widget for MatchRenderer<'_> {
 
                 if self.match_info.finish.is_some() {
                     for player in filter_useless_bots(&self.match_info.players) {
-                        self.render_player(ui, playlist.as_ref(), player);
+                        self.render_player(ui, player);
                     }
                 } else {
                     for player in &self.match_info.players {
-                        self.render_player(ui, playlist.as_ref(), player);
+                        self.render_player(ui, player);
                     }
                 }
             })

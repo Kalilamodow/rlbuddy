@@ -12,7 +12,10 @@ use super::{
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
-use crate::rl::{NameAPI, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api};
+use crate::{
+    core::Playlist,
+    rl::{NameAPI, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api},
+};
 
 fn is_censored(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c == '*')
@@ -98,7 +101,15 @@ impl Matches {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
                 RLEvent::MatchStart => {
-                    self.current_match = Some(MatchInfo::default());
+                    if let Some(current_match) = &self.current_match {
+                        let mut info = MatchInfo::default();
+                        info.playlist = Playlist::from_player_count(
+                            current_match.players.iter().filter(|p| !p.left).count(),
+                        );
+                        self.current_match = Some(info);
+                    } else {
+                        self.current_match = Some(MatchInfo::default());
+                    }
                     self.popup();
                 }
                 RLEvent::MatchOver(winner) => {

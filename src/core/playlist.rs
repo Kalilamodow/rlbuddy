@@ -2,7 +2,7 @@ use std::fmt;
 
 use num_enum::IntoPrimitive;
 
-#[derive(Clone, IntoPrimitive)]
+#[derive(Debug, Clone, IntoPrimitive)]
 #[repr(u8)]
 pub enum Playlist {
     Ones = 10,

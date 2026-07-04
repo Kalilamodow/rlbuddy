@@ -1,6 +1,9 @@
 use std::{sync::Arc, time::SystemTime};
 
-use crate::rl::{NameAPI, Platform, PlayerData, Team, TeamScores};
+use crate::{
+    core::Playlist,
+    rl::{NameAPI, Platform, PlayerData, Team, TeamScores},
+};
 
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {
@@ -55,6 +58,7 @@ pub struct MatchOverInfo {
 
 #[derive(Debug, Clone)]
 pub struct MatchInfo {
+    pub playlist: Option<Playlist>,
     pub players: Vec<MatchPlayer>,
     pub score: TeamScores,
     pub our_team: Team,
@@ -70,6 +74,7 @@ impl Default for MatchInfo {
             our_team: Team::Blue,
             finish: None,
             started_at: SystemTime::now(),
+            playlist: None,
         }
     }
 }
