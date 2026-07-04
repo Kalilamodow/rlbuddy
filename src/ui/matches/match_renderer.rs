@@ -118,43 +118,39 @@ impl<'a> MatchRenderer<'a> {
     }
 
     fn render_player_rank_cell(&mut self, ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
-        let Some(playlist) = &self.match_info.playlist else {
+        let Some((playlist, rank)) = self.match_info.playlist.as_ref().and_then(|playlist| {
+            let rank = match playlist {
+                Playlist::Ones => skill.duels.as_ref(),
+                Playlist::Twos => skill.doubles.as_ref(),
+                Playlist::Threes => skill.standard.as_ref(),
+            };
+
+            rank.map(|rank| (playlist, rank))
+        }) else {
+            center_label(ui, "-");
             return;
         };
 
-        let rank = match playlist {
-            Playlist::Ones => skill.duels.as_ref(),
-            Playlist::Twos => skill.doubles.as_ref(),
-            Playlist::Threes => skill.standard.as_ref(),
-        };
-
-        match rank {
-            Some(rank) => {
-                center_layout(ui, 28.0, |ui| {
-                    if rank.rank_is_estimate {
-                        ui.add(
-                            egui::Image::new(Rank::Unranked.to_image())
-                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
-                        )
-                        .on_hover_text(format!("Unranked in {playlist}"))
-                    } else {
-                        ui.add(
-                            egui::Image::new(rank.rank.to_image())
-                                .fit_to_exact_size(egui::vec2(28.0, 28.0)),
-                        )
-                        .on_hover_text(format!(
-                            "{} rank: {}{}",
-                            playlist,
-                            rank.rank.as_str(),
-                            rank.div
-                        ))
-                    }
-                });
+        center_layout(ui, 28.0, |ui| {
+            if rank.rank_is_estimate {
+                ui.add(
+                    egui::Image::new(Rank::Unranked.to_image())
+                        .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                )
+                .on_hover_text(format!("Unranked in {playlist}"))
+            } else {
+                ui.add(
+                    egui::Image::new(rank.rank.to_image())
+                        .fit_to_exact_size(egui::vec2(28.0, 28.0)),
+                )
+                .on_hover_text(format!(
+                    "{} rank: {}{}",
+                    playlist,
+                    rank.rank.as_str(),
+                    rank.div
+                ))
             }
-            None => {
-                center_label(ui, "-");
-            }
-        }
+        });
     }
 
     fn render_rank_list(ui: &mut egui::Ui, muted: bool, skill: &Arc<EventRanks>) {
