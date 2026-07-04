@@ -54,6 +54,7 @@ pub struct Matches {
     current_match: Option<MatchInfo>,
     prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
+    connected_to_rl: bool,
 }
 
 impl Matches {
@@ -65,16 +66,11 @@ impl Matches {
         let (rl_tx, rl_rx) = mpsc::channel();
 
         let ctx_for_statsapi = ctx.clone();
-        let errors_tx_for_statsapi = errors_tx.clone();
         thread::spawn(move || {
-            let result = connect_to_stats_api(|event| {
+            connect_to_stats_api(|event| {
                 rl_tx.send(event).unwrap();
                 ctx_for_statsapi.request_repaint();
             });
-
-            if let Err(error) = result {
-                errors_tx_for_statsapi.send(error.to_string()).unwrap();
-            }
         });
 
         Matches {
@@ -84,6 +80,7 @@ impl Matches {
             current_match: None,
             prev_match_info: Vec::new(),
             overlay_tx,
+            connected_to_rl: false,
         }
     }
 
@@ -164,8 +161,18 @@ impl Matches {
                         .players
                         .sort_by_key(|p| p.data.team != current_match.our_team);
                 }
+                RLEvent::Connected => {
+                    self.connected_to_rl = true;
+                }
+                RLEvent::Disconnected => {
+                    self.connected_to_rl = false;
+                }
             }
         }
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.connected_to_rl
     }
 }
 

@@ -178,23 +178,6 @@ impl fmt::Display for PlayerData {
     }
 }
 
-pub enum StatsApiError {
-    CouldNotConnect,
-    InvalidStatsApiMessage(String),
-}
-
-impl fmt::Display for StatsApiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CouldNotConnect => write!(
-                f,
-                "couldnt connect to statsapi (make sure you have it enabled)"
-            ),
-            Self::InvalidStatsApiMessage(s) => write!(f, "got an invalid stats api message: {s}"),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct MatchUpdate {
     pub score: TeamScores,
@@ -206,6 +189,9 @@ pub enum RLEvent {
     MatchStart,
     MatchOver(Team), // winner
     MatchLeft,
+
+    Connected,
+    Disconnected,
 }
 
 // cant use connect_timeout bc it just errors instead of waiting when the
@@ -218,64 +204,67 @@ fn connect_forever() -> TcpStream {
     }
 }
 
-pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) -> Result<(), StatsApiError> {
+pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
     let mut read_buffer = vec![0u8; 4096];
 
-    let mut tcp = connect_forever();
-
-    // MatchInitialized doesnt fire in private matches for some reason
-    // so listen for match created then the first countdown is the "game start"
-    let mut match_created_event_happened = false;
-
     loop {
-        let n_bytes = match tcp.read(&mut read_buffer) {
-            Ok(0) => continue,
-            Ok(b) => b,
-            Err(_) => return Err(StatsApiError::CouldNotConnect),
-        };
+        let mut tcp = connect_forever();
 
-        let Ok(text) = std::str::from_utf8(&read_buffer[..n_bytes]) else {
-            return Err(StatsApiError::InvalidStatsApiMessage(String::from(
-                "cant decode",
-            )));
-        };
+        // MatchInitialized doesnt fire in private matches for some reason
+        // so listen for match created then the first countdown is the "game start"
+        let mut match_created_event_happened = false;
+        on_event(RLEvent::Connected);
 
-        let Ok(event) = serde_json::from_str::<StatsApiEvent>(text) else {
-            // ignore (probably framing issue)
-            continue;
-        };
+        loop {
+            let n_bytes = match tcp.read(&mut read_buffer) {
+                Ok(0) => continue,
+                Ok(b) => b,
+                Err(_) => {
+                    on_event(RLEvent::Disconnected);
+                    break;
+                }
+            };
 
-        match event.event.as_str() {
-            "UpdateState" => {
-                let data: UpdateStateEventData = serde_json::from_str(&event.data)
-                    .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
+            let Ok(text) = std::str::from_utf8(&read_buffer[..n_bytes]) else {
+                eprintln!("Failed to decode...");
+                continue;
+            };
 
-                on_event(RLEvent::Update(MatchUpdate {
-                    score: data.game.scores(),
-                    players: data
-                        .players
-                        .into_iter()
-                        .enumerate()
-                        .filter_map(parse_stats_api_player)
-                        .collect(),
-                }));
+            let Ok(event) = serde_json::from_str::<StatsApiEvent>(text) else {
+                // ignore (probably framing issue)
+                continue;
+            };
+
+            match event.event.as_str() {
+                "UpdateState" => {
+                    let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
+
+                    on_event(RLEvent::Update(MatchUpdate {
+                        score: data.game.scores(),
+                        players: data
+                            .players
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(parse_stats_api_player)
+                            .collect(),
+                    }));
+                }
+                "MatchCreated" => {
+                    match_created_event_happened = true;
+                }
+                "CountdownBegin" if match_created_event_happened => {
+                    match_created_event_happened = false;
+                    on_event(RLEvent::MatchStart);
+                }
+                "MatchEnded" => {
+                    let data: MatchEndedEventData = serde_json::from_str(&event.data).unwrap();
+                    on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)));
+                }
+                "MatchDestroyed" => {
+                    on_event(RLEvent::MatchLeft);
+                }
+                _ => {}
             }
-            "MatchCreated" => {
-                match_created_event_happened = true;
-            }
-            "CountdownBegin" if match_created_event_happened => {
-                match_created_event_happened = false;
-                on_event(RLEvent::MatchStart);
-            }
-            "MatchEnded" => {
-                let data: MatchEndedEventData = serde_json::from_str(&event.data)
-                    .map_err(|e| StatsApiError::InvalidStatsApiMessage(e.to_string() + text))?;
-                on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)));
-            }
-            "MatchDestroyed" => {
-                on_event(RLEvent::MatchLeft);
-            }
-            _ => {}
         }
     }
 }

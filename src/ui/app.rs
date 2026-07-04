@@ -130,11 +130,25 @@ impl eframe::App for RlBuddyApp {
             self.current_error = Some(new_error);
         }
 
-        egui::Panel::bottom("bottom_buttons").show_inside(ui, |ui| {
+        egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 for panel in ALL_PANELS {
                     self.panel_add_button(ui, &panel.to_string(), panel);
                 }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let connected = self.matches.is_connected();
+
+                    if connected {
+                        ui.label(
+                            egui::RichText::new("Connected").color(egui::Color32::LIGHT_GREEN),
+                        );
+                    } else {
+                        ui.label(
+                            egui::RichText::new("Not connected").color(egui::Color32::LIGHT_RED),
+                        );
+                    }
+                });
             });
         });
 
