@@ -118,16 +118,25 @@ impl Matches {
                 }
                 RLEvent::MatchLeft => {
                     self.rpc.set(discord::State::Lobby);
-                    if self
-                        .current_match
-                        .as_ref()
-                        .is_none_or(|m| m.players.len() <= 1)
-                    {
+
+                    let Some(mut current_match) = self.current_match.take() else {
+                        return;
+                    };
+
+                    // training
+                    if current_match.players.len() <= 1 {
+                        self.current_match = Some(current_match);
                         return;
                     }
 
-                    self.prev_match_info
-                        .insert(0, self.current_match.take().unwrap());
+                    if current_match.finish.is_none() {
+                        current_match.finish = Some(MatchOverInfo {
+                            timestamp: SystemTime::now(),
+                            winner: current_match.score.guess_winner(),
+                        });
+                    }
+
+                    self.prev_match_info.insert(0, current_match);
                 }
                 RLEvent::Update(state) => {
                     if self.current_match.is_none() {

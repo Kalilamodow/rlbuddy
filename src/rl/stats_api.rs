@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::{
+    cmp::Ordering,
     fmt,
     io::Read,
     net::{SocketAddr, TcpStream},
@@ -57,6 +58,16 @@ struct UpdateStateEventData {
 pub struct TeamScores {
     pub blue: u8,
     pub orange: u8,
+}
+
+impl TeamScores {
+    pub fn guess_winner(&self) -> Option<Team> {
+        Some(match self.blue.cmp(&self.orange) {
+            Ordering::Equal => return None,
+            Ordering::Greater => Team::Blue,
+            Ordering::Less => Team::Orange,
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
