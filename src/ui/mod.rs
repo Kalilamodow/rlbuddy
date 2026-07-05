@@ -1,4 +1,5 @@
 mod app;
+mod discord;
 mod hotkey;
 mod matches;
 

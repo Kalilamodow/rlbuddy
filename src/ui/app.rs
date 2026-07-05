@@ -1,11 +1,13 @@
+use crate::ui::discord::{DiscordWidget, RichPresenceSettings};
+
 use super::{
     hotkey::{HotkeySettings, HotkeyWidget},
     matches::Matches,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::sync::mpsc;
+use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
@@ -15,6 +17,7 @@ fn bold_text(text: impl Into<String>) -> egui::RichText {
 enum Panel {
     Matches,
     HotkeySettings,
+    DiscordSettings,
 }
 
 impl std::fmt::Display for Panel {
@@ -25,16 +28,22 @@ impl std::fmt::Display for Panel {
             match self {
                 Panel::Matches => "Matches",
                 Panel::HotkeySettings => "Hotkey",
+                Panel::DiscordSettings => "Discord",
             }
         )
     }
 }
 
-const ALL_PANELS: [Panel; 2] = [Panel::Matches, Panel::HotkeySettings];
+const ALL_PANELS: [Panel; 3] = [
+    Panel::Matches,
+    Panel::HotkeySettings,
+    Panel::DiscordSettings,
+];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct AppData {
     hotkey_settings: Option<HotkeySettings>,
+    rich_presence_settings: Option<RichPresenceSettings>,
 }
 
 pub struct RlBuddyApp {
@@ -46,6 +55,7 @@ pub struct RlBuddyApp {
     open_panels: HashSet<Panel>,
     matches: Matches,
     hotkey_settings: HotkeyWidget,
+    discord: DiscordWidget,
 }
 
 impl RlBuddyApp {
@@ -66,6 +76,8 @@ impl RlBuddyApp {
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
         hotkey_widget.start_listening();
 
+        let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
+
         RlBuddyApp {
             error_receiver: errors_rx,
             current_error: None,
@@ -73,8 +85,14 @@ impl RlBuddyApp {
             prev_hide_pos: None,
 
             open_panels: HashSet::from([Panel::Matches]),
-            matches: Matches::new(&ctx, overlay_tx.clone(), errors_tx),
+            matches: Matches::new(
+                &ctx,
+                Rc::clone(&rich_presence),
+                overlay_tx.clone(),
+                errors_tx,
+            ),
             hotkey_settings: hotkey_widget,
+            discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
         }
     }
 
@@ -125,6 +143,7 @@ impl eframe::App for RlBuddyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
+            rich_presence_settings: Some(self.discord.clone_settings()),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
@@ -183,6 +202,7 @@ impl eframe::App for RlBuddyApp {
                             match panel {
                                 Panel::Matches => ui.add(&self.matches),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
+                                Panel::DiscordSettings => ui.add(&self.discord),
                             };
                         }
                     }
