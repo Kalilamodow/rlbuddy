@@ -1,12 +1,11 @@
 use super::{
-    hotkey,
+    hotkey::{HotkeySettings, HotkeyWidget},
     matches::Matches,
-    settings::{SettingsState, SettingsWidget},
 };
 use eframe::egui;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::mpsc;
-use std::thread;
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).strong()
@@ -15,7 +14,7 @@ fn bold_text(text: impl Into<String>) -> egui::RichText {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
     Matches,
-    Settings,
+    HotkeySettings,
 }
 
 impl std::fmt::Display for Panel {
@@ -25,13 +24,18 @@ impl std::fmt::Display for Panel {
             "{}",
             match self {
                 Panel::Matches => "Matches",
-                Panel::Settings => "Settings",
+                Panel::HotkeySettings => "Hotkey",
             }
         )
     }
 }
 
-const ALL_PANELS: [Panel; 2] = [Panel::Matches, Panel::Settings];
+const ALL_PANELS: [Panel; 2] = [Panel::Matches, Panel::HotkeySettings];
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct AppData {
+    hotkey_settings: Option<HotkeySettings>,
+}
 
 pub struct RlBuddyApp {
     error_receiver: mpsc::Receiver<String>,
@@ -41,7 +45,7 @@ pub struct RlBuddyApp {
 
     open_panels: HashSet<Panel>,
     matches: Matches,
-    settings: SettingsWidget,
+    hotkey_settings: HotkeyWidget,
 }
 
 impl RlBuddyApp {
@@ -50,22 +54,17 @@ impl RlBuddyApp {
         let (errors_tx, errors_rx) = mpsc::channel();
         let (overlay_tx, overlay_rx) = mpsc::channel();
 
-        let settings = if let Some(storage) = cc.storage
-            && let Some(existing_state) =
-                eframe::get_value::<SettingsState>(storage, eframe::APP_KEY)
+        let app_data = if let Some(storage) = cc.storage
+            && let Some(existing_state) = eframe::get_value::<AppData>(storage, eframe::APP_KEY)
         {
-            SettingsWidget::from_existing(existing_state)
+            existing_state
         } else {
-            SettingsWidget::default()
+            AppData::default()
         };
 
-        let overlay_tx_for_hotkey = overlay_tx.clone();
-        let ctx_for_hotkey = ctx.clone();
-        let settings_for_hotkey = settings.clone_state();
-
-        thread::spawn(move || {
-            hotkey::listen_for_hotkey(overlay_tx_for_hotkey, ctx_for_hotkey, settings_for_hotkey);
-        });
+        let hotkey_widget =
+            HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
+        hotkey_widget.start_listening();
 
         RlBuddyApp {
             error_receiver: errors_rx,
@@ -75,7 +74,7 @@ impl RlBuddyApp {
 
             open_panels: HashSet::from([Panel::Matches]),
             matches: Matches::new(&ctx, overlay_tx.clone(), errors_tx),
-            settings,
+            hotkey_settings: hotkey_widget,
         }
     }
 
@@ -124,7 +123,10 @@ impl RlBuddyApp {
 
 impl eframe::App for RlBuddyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, &self.settings.clone_state());
+        let data = AppData {
+            hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
+        };
+        eframe::set_value(storage, eframe::APP_KEY, &data);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -180,7 +182,7 @@ impl eframe::App for RlBuddyApp {
                             self.panel_remove_button(ui, &panel.to_string(), panel);
                             match panel {
                                 Panel::Matches => ui.add(&self.matches),
-                                Panel::Settings => ui.add(&self.settings),
+                                Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                             };
                         }
                     }
