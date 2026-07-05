@@ -86,7 +86,7 @@ impl RichPresence {
                     "{} in {}",
                     data.playlist
                         .as_ref()
-                        .map(|x| x.to_string())
+                        .map(ToString::to_string)
                         .as_deref()
                         .unwrap_or("Playing"),
                     data.arena
