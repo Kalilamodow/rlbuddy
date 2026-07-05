@@ -8,6 +8,8 @@ use discord_rich_presence::{
     activity::{Activity, Timestamps},
 };
 
+use crate::rl::Playlist;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WinState {
     Winning,
@@ -30,17 +32,19 @@ impl Display for WinState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Scores {
+pub struct GameData {
     pub blue: u8,
     pub orange: u8,
     pub winning: WinState,
+    pub playlist: Option<Playlist>,
+    pub arena: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
     Lobby,
     Training,
-    InGame(Scores),
+    InGame(GameData),
 }
 
 pub struct RichPresence {
@@ -73,20 +77,24 @@ impl RichPresence {
             return;
         }
 
-        self.client
-            .set_activity(
-                Activity::new()
-                    .details(match &state {
-                        State::Lobby => format!("Main menu"),
-                        State::Training => format!("In training"),
-                        State::InGame(score) => {
-                            format!("{} {}-{}", score.winning, score.blue, score.orange)
-                        }
-                    })
-                    .timestamps(Timestamps::new().start(self.start_time)),
-            )
-            .unwrap();
+        let activity = Activity::new().timestamps(Timestamps::new().start(self.start_time));
+        let activity = match &state {
+            State::Lobby => activity.details("Main menu"),
+            State::Training => activity.details("In training"),
+            State::InGame(data) => activity
+                .details(format!(
+                    "{} in {}",
+                    data.playlist
+                        .as_ref()
+                        .map(|x| x.to_string())
+                        .as_deref()
+                        .unwrap_or("Playing"),
+                    data.arena
+                ))
+                .state(format!("{} {}-{}", data.winning, data.blue, data.orange)),
+        };
 
+        self.client.set_activity(activity).unwrap();
         self.previous_send = Some(state);
     }
 }

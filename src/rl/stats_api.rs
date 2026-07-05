@@ -36,6 +36,7 @@ struct StatsApiTeamData {
 #[serde(rename_all = "PascalCase")]
 struct StatsApiGameData {
     teams: [StatsApiTeamData; 2],
+    arena: String,
 }
 
 impl StatsApiGameData {
@@ -193,6 +194,7 @@ impl fmt::Display for PlayerData {
 pub struct MatchUpdate {
     pub score: TeamScores,
     pub players: Vec<PlayerData>,
+    pub arena: &'static str,
 }
 
 pub enum RLEvent {
@@ -252,6 +254,7 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
 
                     on_event(RLEvent::Update(MatchUpdate {
                         score: data.game.scores(),
+                        arena: super::asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
                         players: data
                             .players
                             .into_iter()

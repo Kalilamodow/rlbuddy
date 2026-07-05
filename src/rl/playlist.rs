@@ -2,7 +2,7 @@ use std::fmt;
 
 use num_enum::IntoPrimitive;
 
-#[derive(Debug, Clone, IntoPrimitive)]
+#[derive(Debug, Clone, IntoPrimitive, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Playlist {
     Ones = 10,
@@ -27,9 +27,9 @@ impl fmt::Display for Playlist {
             f,
             "{}",
             match self {
-                Playlist::Ones => "1s",
-                Playlist::Twos => "2s",
-                Playlist::Threes => "3s",
+                Playlist::Ones => "Duel",
+                Playlist::Twos => "Doubles",
+                Playlist::Threes => "Standard",
             }
         )
     }

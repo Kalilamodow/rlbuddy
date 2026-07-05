@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     discord,
-    rl::{NameAPI, Platform, PlayerData, RLEvent, RankAPI, Team, connect_to_stats_api},
+    rl::{NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team, connect_to_stats_api},
 };
 
 fn is_censored(name: &str) -> bool {
@@ -181,10 +181,12 @@ impl Matches {
                             Ordering::Equal => discord::WinState::Tied,
                         };
 
-                        self.rpc.set(discord::State::InGame(discord::Scores {
+                        self.rpc.set(discord::State::InGame(discord::GameData {
                             blue: current_match.score.blue,
                             orange: current_match.score.orange,
                             winning,
+                            playlist: Playlist::from_player_count(current_match.max_active_players),
+                            arena: state.arena,
                         }));
                     }
                 }
