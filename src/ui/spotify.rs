@@ -40,16 +40,17 @@ impl egui::Widget for &SpotifyWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let mut data = self.data.write().unwrap();
 
-        ui.vertical_centered_justified(|ui| {
-            if let Some(auth) = &data.authorization {
-                ui.label(format!("Credentials: {:#?}", auth));
-                if ui.button("Unauthorize").clicked() {
-                    data.authorization = None;
-                }
-            } else {
-                if ui.button("Authorize").clicked() {
+        ui.vertical(|ui| {
+            let Some(auth) = &data.authorization else {
+                if ui.button("Link Spotify").clicked() {
                     self.open_authorizer();
                 }
+                return;
+            };
+
+            ui.label(format!("Auth: {:#?}", auth));
+            if ui.button("Unlink").clicked() {
+                data.authorization = None;
             }
         })
         .response
