@@ -76,7 +76,7 @@ impl Client {
         let listener = TcpListener::bind("127.0.0.1:7742").unwrap();
         let (mut stream, _) = listener.accept().unwrap();
         let mut buffer = [0; 1024];
-        stream.read(&mut buffer).unwrap();
+        stream.read_exact(&mut buffer).unwrap();
         let response = String::from_utf8_lossy(&buffer);
 
         stream
