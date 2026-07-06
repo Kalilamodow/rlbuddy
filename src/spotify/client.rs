@@ -17,7 +17,7 @@ fn generate_code_verifier() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Authorization {
+pub struct Client {
     access_token: String,
     refresh_token: String,
 }
@@ -36,8 +36,8 @@ setInterval(() => {
 </script>
 "#;
 
-impl Authorization {
-    pub fn from_scratch() -> Authorization {
+impl Client {
+    pub fn from_scratch() -> Client {
         let verifier = generate_code_verifier();
         let hashed = sha256(&verifier);
         let code_challenge = URL_SAFE_NO_PAD.encode(hashed);
@@ -102,7 +102,7 @@ impl Authorization {
             .send_form(form)
             .unwrap()
             .body_mut()
-            .read_json::<Authorization>()
+            .read_json::<Client>()
             .unwrap()
     }
 }

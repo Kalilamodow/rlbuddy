@@ -6,11 +6,11 @@ use std::{
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 
-use crate::spotify::{self, Authorization};
+use crate::spotify;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SpotifyData {
-    authorization: Option<spotify::Authorization>,
+    client: Option<spotify::Client>,
 }
 
 pub struct SpotifyWidget {
@@ -31,7 +31,7 @@ impl SpotifyWidget {
     pub fn open_authorizer(&self) {
         let data = Arc::clone(&self.data);
         thread::spawn(move || {
-            data.write().unwrap().authorization = Some(Authorization::from_scratch());
+            data.write().unwrap().client = Some(spotify::Client::from_scratch());
         });
     }
 }
@@ -41,7 +41,7 @@ impl egui::Widget for &SpotifyWidget {
         let mut data = self.data.write().unwrap();
 
         ui.vertical(|ui| {
-            let Some(auth) = &data.authorization else {
+            let Some(auth) = &data.client else {
                 if ui.button("Link Spotify").clicked() {
                     self.open_authorizer();
                 }
@@ -50,7 +50,7 @@ impl egui::Widget for &SpotifyWidget {
 
             ui.label(format!("Auth: {:#?}", auth));
             if ui.button("Unlink").clicked() {
-                data.authorization = None;
+                data.client = None;
             }
         })
         .response
