@@ -2,7 +2,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::distr::SampleString;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
-use std::io::Read as _;
+use std::io::{Read as _, Write};
 use std::net::TcpListener;
 
 const CLIENT_ID: &str = "7cad881bada7434790b3fa50925c6b69";
@@ -21,6 +21,20 @@ pub struct Authorization {
     access_token: String,
     refresh_token: String,
 }
+
+const AUTH_CODE_REDIRECT_PAGE_CONTENT: &str = r#"<!DOCTYPE html>
+<h1>authorization complete!!!</h1>
+<p>this tab will close in <strong>3</strong> <span>seconds</span></p>
+<script>
+let val = 3;
+setInterval(() => {
+    val--;
+    document.querySelector("strong").innerText = val;
+    document.querySelector("span").innerText = `second${val == 1 ? '' : 's'}`;
+    if (val == 0) window.close();
+}, 1000);
+</script>
+"#;
 
 impl Authorization {
     pub fn from_scratch() -> Authorization {
@@ -47,8 +61,24 @@ impl Authorization {
         let (mut stream, _) = listener.accept().unwrap();
         let mut buffer = [0; 1024];
         stream.read(&mut buffer).unwrap();
-
         let response = String::from_utf8_lossy(&buffer);
+
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\n\
+                    Content-Type: text/html; charset=utf-8\r\n\
+                    Content-Length: {}\r\n\
+                    Connection: close\r\n\r\n\
+                    {}",
+                    AUTH_CODE_REDIRECT_PAGE_CONTENT.len(),
+                    AUTH_CODE_REDIRECT_PAGE_CONTENT
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+        stream.flush().unwrap();
+
         let authorization_code = response
             .split_once("?code=")
             .unwrap()
