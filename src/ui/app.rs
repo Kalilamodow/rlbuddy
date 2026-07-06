@@ -3,6 +3,7 @@ use crate::ui::discord::{DiscordWidget, RichPresenceSettings};
 use super::{
     hotkey::{HotkeySettings, HotkeyWidget},
     matches::Matches,
+    spotify::{SpotifyData, SpotifyWidget},
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ enum Panel {
     Matches,
     HotkeySettings,
     DiscordSettings,
+    Spotify,
 }
 
 impl std::fmt::Display for Panel {
@@ -29,21 +31,24 @@ impl std::fmt::Display for Panel {
                 Panel::Matches => "Matches",
                 Panel::HotkeySettings => "Hotkey",
                 Panel::DiscordSettings => "Discord",
+                Panel::Spotify => "Spotify",
             }
         )
     }
 }
 
-const ALL_PANELS: [Panel; 3] = [
+const ALL_PANELS: [Panel; 4] = [
     Panel::Matches,
     Panel::HotkeySettings,
     Panel::DiscordSettings,
+    Panel::Spotify,
 ];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct AppData {
     hotkey_settings: Option<HotkeySettings>,
     rich_presence_settings: Option<RichPresenceSettings>,
+    spotify_data: Option<SpotifyData>,
 }
 
 pub struct RlBuddyApp {
@@ -56,6 +61,7 @@ pub struct RlBuddyApp {
     matches: Matches,
     hotkey_settings: HotkeyWidget,
     discord: DiscordWidget,
+    spotify: SpotifyWidget,
 }
 
 impl RlBuddyApp {
@@ -93,6 +99,7 @@ impl RlBuddyApp {
             ),
             hotkey_settings: hotkey_widget,
             discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
+            spotify: SpotifyWidget::new(app_data.spotify_data),
         }
     }
 
@@ -144,6 +151,7 @@ impl eframe::App for RlBuddyApp {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
             rich_presence_settings: Some(self.discord.clone_settings()),
+            spotify_data: Some(self.spotify.clone_data()),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
@@ -203,6 +211,7 @@ impl eframe::App for RlBuddyApp {
                                 Panel::Matches => ui.add(&self.matches),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                 Panel::DiscordSettings => ui.add(&self.discord),
+                                Panel::Spotify => ui.add(&self.spotify),
                             };
                         }
                     }

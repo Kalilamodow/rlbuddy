@@ -2,6 +2,7 @@
 
 mod discord;
 mod rl;
+mod spotify;
 mod ui;
 
 use eframe::egui;
