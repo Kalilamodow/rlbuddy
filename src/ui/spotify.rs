@@ -26,7 +26,12 @@ impl SpotifyWidget {
     }
 
     pub fn save(&self) -> Option<SavedCredentials> {
-        self.data.read().unwrap().client.as_ref().map(|c| c.save())
+        self.data
+            .read()
+            .unwrap()
+            .client
+            .as_ref()
+            .map(spotify::Client::save)
     }
 
     pub fn open_authorizer(&self) {
@@ -49,7 +54,7 @@ impl egui::Widget for &SpotifyWidget {
                 return;
             };
 
-            ui.label(format!("Auth: {:#?}", auth));
+            ui.label(format!("Auth: {auth:#?}"));
             if ui.button("Unlink").clicked() {
                 data.client = None;
             }
