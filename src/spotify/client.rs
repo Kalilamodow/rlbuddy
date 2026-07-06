@@ -66,7 +66,7 @@ impl Client {
             &code_challenge_method=S256\
             &code_challenge={code_challenge}\
             &redirect_uri={}",
-            urlencoding::encode("user-read-private user-read-email"),
+            urlencoding::encode("user-read-playback-state"),
             urlencoding::encode(REDIRECT_URL)
         );
 
@@ -141,4 +141,34 @@ impl Client {
             refresh_token: credentials.refresh_token,
         }
     }
+
+    pub fn get_playback_state(&self) -> Option<PlaybackState> {
+        let r = ureq::get("https://api.spotify.com/v1/me/player")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .call()
+            .unwrap();
+
+        if r.status() == ureq::http::StatusCode::NO_CONTENT {
+            return None;
+        };
+
+        r.into_body().read_json().unwrap()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Artist {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Track {
+    pub name: String,
+    pub artists: Vec<Artist>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlaybackState {
+    #[serde(rename = "item")]
+    pub track: Track,
 }
