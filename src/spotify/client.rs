@@ -66,7 +66,7 @@ impl Client {
             &code_challenge_method=S256\
             &code_challenge={code_challenge}\
             &redirect_uri={}",
-            urlencoding::encode("user-read-playback-state"),
+            urlencoding::encode("user-read-playback-state user-modify-playback-state"),
             urlencoding::encode(REDIRECT_URL)
         );
 
@@ -153,6 +153,13 @@ impl Client {
         };
 
         r.into_body().read_json().unwrap()
+    }
+
+    pub fn skip_song(&self) {
+        ureq::post("https://api.spotify.com/v1/me/player/next")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send_empty()
+            .unwrap();
     }
 }
 

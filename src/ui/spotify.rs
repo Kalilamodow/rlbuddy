@@ -66,10 +66,27 @@ impl SpotifyWidget {
         });
     }
 
+    fn render_time_till_next_poll(&self, ui: &mut egui::Ui) {
+        let last_poll_time = self.last_poll_time.lock().unwrap();
+        let seconds_since = SystemTime::now()
+            .duration_since(*last_poll_time)
+            .unwrap()
+            .as_secs();
+        let until = 10 - seconds_since;
+        ui.small(format!(
+            "Next check in {} second{}",
+            until,
+            if until == 1 { "" } else { "s" }
+        ));
+
+        ui.request_repaint_after_secs(1.0);
+    }
+
     fn render_currently_playing(&self, ui: &mut egui::Ui) {
         let currently_playing = self.currently_playing.lock().unwrap();
         let Some(state) = currently_playing.as_ref() else {
             ui.label("No track currently playing");
+            self.render_time_till_next_poll(ui);
             return;
         };
 
@@ -83,25 +100,17 @@ impl SpotifyWidget {
             });
 
             ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
-                {
-                    let last_poll_time = self.last_poll_time.lock().unwrap();
-                    let seconds_since = SystemTime::now()
-                        .duration_since(*last_poll_time)
-                        .unwrap()
-                        .as_secs();
-                    let until = 10 - seconds_since;
-                    ui.small(format!(
-                        "Next check in {} second{}",
-                        until,
-                        if until == 1 { "" } else { "s" }
-                    ));
-
-                    ui.request_repaint_after_secs(1.0);
-                }
+                self.render_time_till_next_poll(ui);
 
                 ui.add_space(4.0);
                 if ui.button("Skip").clicked() {
-                    println!("skipping");
+                    let client = Arc::clone(&self.client);
+                    thread::spawn(move || {
+                        let client = client.lock().unwrap();
+                        if let Some(client) = client.as_ref() {
+                            client.skip_song();
+                        }
+                    });
                 }
             });
         });
