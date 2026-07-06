@@ -98,13 +98,7 @@ impl Authorization {
             ("code_verifier", &verifier),
         ];
 
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .build()
-            .into();
-
-        agent
-            .post("https://accounts.spotify.com/api/token")
+        ureq::post("https://accounts.spotify.com/api/token")
             .send_form(form)
             .unwrap()
             .body_mut()
