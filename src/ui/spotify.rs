@@ -4,28 +4,29 @@ use std::{
 };
 
 use eframe::egui;
-use serde::{Deserialize, Serialize};
 
-use crate::spotify;
+use crate::spotify::{self, SavedCredentials};
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct SpotifyData {
+#[derive(Debug, Default)]
+struct SpotifyWidgetData {
     client: Option<spotify::Client>,
 }
 
 pub struct SpotifyWidget {
-    data: Arc<RwLock<SpotifyData>>,
+    data: Arc<RwLock<SpotifyWidgetData>>,
 }
 
 impl SpotifyWidget {
-    pub fn new(data: Option<SpotifyData>) -> SpotifyWidget {
+    pub fn new(credentials: Option<spotify::SavedCredentials>) -> SpotifyWidget {
         SpotifyWidget {
-            data: Arc::new(RwLock::new(data.unwrap_or_default())),
+            data: Arc::new(RwLock::new(SpotifyWidgetData {
+                client: credentials.map(spotify::Client::from_saved),
+            })),
         }
     }
 
-    pub fn clone_data(&self) -> SpotifyData {
-        self.data.read().unwrap().clone()
+    pub fn save(&self) -> Option<SavedCredentials> {
+        self.data.read().unwrap().client.as_ref().map(|c| c.save())
     }
 
     pub fn open_authorizer(&self) {

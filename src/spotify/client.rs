@@ -17,6 +17,16 @@ fn generate_code_verifier() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedCredentials {
+    refresh_token: String,
+}
+
+#[derive(Deserialize)]
+pub struct RefreshFlowResponse {
+    access_token: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Client {
     access_token: String,
     refresh_token: String,
@@ -37,6 +47,12 @@ setInterval(() => {
 "#;
 
 impl Client {
+    pub fn save(&self) -> SavedCredentials {
+        SavedCredentials {
+            refresh_token: self.refresh_token.clone(),
+        }
+    }
+
     pub fn from_scratch() -> Client {
         let verifier = generate_code_verifier();
         let hashed = sha256(&verifier);
@@ -104,5 +120,25 @@ impl Client {
             .body_mut()
             .read_json::<Client>()
             .unwrap()
+    }
+
+    pub fn from_saved(credentials: SavedCredentials) -> Client {
+        let form = [
+            ("client_id", CLIENT_ID),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", &credentials.refresh_token),
+        ];
+
+        let response: RefreshFlowResponse = ureq::post("https://accounts.spotify.com/api/token")
+            .send_form(form)
+            .unwrap()
+            .body_mut()
+            .read_json()
+            .unwrap();
+
+        Client {
+            access_token: response.access_token,
+            refresh_token: credentials.refresh_token,
+        }
     }
 }

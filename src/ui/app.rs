@@ -1,9 +1,12 @@
-use crate::ui::discord::{DiscordWidget, RichPresenceSettings};
+use crate::{
+    spotify,
+    ui::discord::{DiscordWidget, RichPresenceSettings},
+};
 
 use super::{
     hotkey::{HotkeySettings, HotkeyWidget},
     matches::Matches,
-    spotify::{SpotifyData, SpotifyWidget},
+    spotify::SpotifyWidget,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
@@ -48,7 +51,7 @@ const ALL_PANELS: [Panel; 4] = [
 struct AppData {
     hotkey_settings: Option<HotkeySettings>,
     rich_presence_settings: Option<RichPresenceSettings>,
-    spotify_data: Option<SpotifyData>,
+    spotify_data: Option<spotify::SavedCredentials>,
 }
 
 pub struct RlBuddyApp {
@@ -151,7 +154,7 @@ impl eframe::App for RlBuddyApp {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
             rich_presence_settings: Some(self.discord.clone_settings()),
-            spotify_data: Some(self.spotify.clone_data()),
+            spotify_data: self.spotify.save(),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
