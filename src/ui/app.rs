@@ -6,7 +6,7 @@ use super::{
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, sync::mpsc};
+use std::sync::mpsc;
 use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
@@ -60,7 +60,7 @@ pub struct RlBuddyApp {
     matches: Matches,
     hotkey_settings: HotkeyWidget,
     discord: DiscordWidget,
-    spotify: Rc<RefCell<spotify::SpotifyWidget>>,
+    spotify: spotify::SpotifyWidget,
 }
 
 impl RlBuddyApp {
@@ -83,10 +83,7 @@ impl RlBuddyApp {
 
         let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
 
-        // so matches can use it
-        let spotify_widget = Rc::new(RefCell::new(spotify::SpotifyWidget::new(
-            app_data.spotify_data,
-        )));
+        let spotify_widget = spotify::SpotifyWidget::new(app_data.spotify_data);
 
         RlBuddyApp {
             error_receiver: errors_rx,
@@ -100,7 +97,7 @@ impl RlBuddyApp {
                 Rc::clone(&rich_presence),
                 overlay_tx.clone(),
                 errors_tx,
-                Rc::clone(&spotify_widget),
+                spotify_widget.cmd(),
             ),
             hotkey_settings: hotkey_widget,
             discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
@@ -156,7 +153,7 @@ impl eframe::App for RlBuddyApp {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
             rich_presence_settings: Some(self.discord.clone_settings()),
-            spotify_data: Some(self.spotify.borrow().save()),
+            spotify_data: Some(self.spotify.save()),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
@@ -216,7 +213,7 @@ impl eframe::App for RlBuddyApp {
                                 Panel::Matches => ui.add(&self.matches),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                 Panel::DiscordSettings => ui.add(&self.discord),
-                                Panel::Spotify => ui.add(&mut *self.spotify.borrow_mut()),
+                                Panel::Spotify => ui.add(&mut self.spotify),
                             };
                         }
                     }
