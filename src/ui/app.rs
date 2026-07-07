@@ -9,10 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::mpsc;
 use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
-fn bold_text(text: impl Into<String>) -> egui::RichText {
-    egui::RichText::new(text).strong()
-}
-
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
     CurrentMatch,
@@ -55,8 +51,6 @@ struct AppData {
 }
 
 pub struct RlBuddyApp {
-    error_receiver: mpsc::Receiver<String>,
-    current_error: Option<String>,
     prev_hide_pos: Option<egui::Pos2>,
     overlay_rx: mpsc::Receiver<bool>,
     open_panels: HashSet<Panel>,
@@ -71,7 +65,6 @@ pub struct RlBuddyApp {
 impl RlBuddyApp {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         let ctx = cc.egui_ctx.clone();
-        let (errors_tx, errors_rx) = mpsc::channel();
         let (overlay_tx, overlay_rx) = mpsc::channel();
 
         let app_data = if let Some(storage) = cc.storage
@@ -92,8 +85,6 @@ impl RlBuddyApp {
         let past_matches_widget = PastMatchesWidget::new();
 
         RlBuddyApp {
-            error_receiver: errors_rx,
-            current_error: None,
             overlay_rx,
             prev_hide_pos: None,
 
@@ -102,7 +93,6 @@ impl RlBuddyApp {
                 &ctx,
                 Rc::clone(&rich_presence),
                 overlay_tx.clone(),
-                errors_tx,
                 spotify_widget.cmd(),
                 past_matches_widget.cmd(),
             ),
@@ -178,10 +168,6 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        if let Ok(new_error) = self.error_receiver.try_recv() {
-            self.current_error = Some(new_error);
-        }
-
         self.set_connected_status(ui.ctx(), self.current_match.is_connected_to_rl());
         egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
@@ -192,42 +178,34 @@ impl eframe::App for RlBuddyApp {
         });
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            if let Some(err) = &self.current_error {
-                ui.label(bold_text("Fatal error"));
-                ui.label(err);
-                if ui.button("Exit").clicked() {
-                    ui.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-            } else {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.vertical_centered_justified(|ui| {
-                        if self.open_panels.is_empty() {
-                            ui.label("No panels open");
-                            return;
-                        }
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    if self.open_panels.is_empty() {
+                        ui.label("No panels open");
+                        return;
+                    }
 
-                        let mut is_first = true;
+                    let mut is_first = true;
 
-                        for panel in ALL_PANELS {
-                            if self.open_panels.contains(&panel) {
-                                if !is_first {
-                                    ui.separator();
-                                }
-                                is_first = false;
-
-                                self.panel_remove_button(ui, &panel.to_string(), panel);
-                                match panel {
-                                    Panel::CurrentMatch => ui.add(&self.current_match),
-                                    Panel::HotkeySettings => ui.add(&self.hotkey_settings),
-                                    Panel::DiscordSettings => ui.add(&mut self.discord),
-                                    Panel::Spotify => ui.add(&mut self.spotify),
-                                    Panel::PastMatches => ui.add(&mut self.past_matches),
-                                };
+                    for panel in ALL_PANELS {
+                        if self.open_panels.contains(&panel) {
+                            if !is_first {
+                                ui.separator();
                             }
+                            is_first = false;
+
+                            self.panel_remove_button(ui, &panel.to_string(), panel);
+                            match panel {
+                                Panel::CurrentMatch => ui.add(&self.current_match),
+                                Panel::HotkeySettings => ui.add(&self.hotkey_settings),
+                                Panel::DiscordSettings => ui.add(&mut self.discord),
+                                Panel::Spotify => ui.add(&mut self.spotify),
+                                Panel::PastMatches => ui.add(&mut self.past_matches),
+                            };
                         }
-                    })
-                });
-            }
+                    }
+                })
+            });
         });
     }
 

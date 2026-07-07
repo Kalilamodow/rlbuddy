@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock, mpsc},
+    sync::{Arc, RwLock},
     thread,
 };
 
@@ -85,15 +85,13 @@ pub struct RankAPI {
     // option for whether its loaded yet
     ranks: Arc<RwLock<HashMap<String, Option<Arc<EventRanks>>>>>,
     context: egui::Context,
-    error_sender: mpsc::Sender<String>,
 }
 
 impl RankAPI {
-    pub fn new(context: egui::Context, error_tx: mpsc::Sender<String>) -> RankAPI {
+    pub fn new(context: egui::Context) -> RankAPI {
         RankAPI {
             ranks: Arc::new(RwLock::new(HashMap::new())),
             context,
-            error_sender: error_tx,
         }
     }
 
@@ -107,7 +105,6 @@ impl RankAPI {
 
         let platform_id = platform_id.clone();
         let context = self.context.clone();
-        let error_tx = self.error_sender.clone();
 
         let url = format!("{}?playerId={}", API_URL, urlencoding::encode(&platform_id));
 
@@ -118,10 +115,9 @@ impl RankAPI {
                 current.insert(platform_id.clone(), None);
             }
 
-            let Ok(mut response) = super::utils::get_with_retries::<3>(&url) else {
-                error_tx
-                    .send("Could not communicate with rank server".to_string())
-                    .unwrap();
+            let Ok(mut response) = ureq::get(&url).call() else {
+                let mut current = current.write().unwrap();
+                current.remove(&platform_id);
                 return;
             };
 

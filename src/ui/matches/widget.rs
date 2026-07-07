@@ -67,7 +67,6 @@ impl CurrentMatch {
         ctx: &egui::Context,
         discord: Rc<Mutex<discord::RichPresence>>,
         overlay_tx: mpsc::Sender<bool>,
-        errors_tx: mpsc::Sender<String>,
         spotify: mpsc::Sender<SpotifyCommand>,
         match_over_tx: mpsc::Sender<MatchInfo>,
     ) -> CurrentMatch {
@@ -84,7 +83,7 @@ impl CurrentMatch {
         CurrentMatch {
             rl_rx,
             rpc: discord,
-            player_ranks: RankAPI::new(ctx.clone(), errors_tx),
+            player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
             current_match: None,
             overlay_tx,

@@ -49,7 +49,9 @@ impl NameAPI {
                 current.insert(player_id.clone(), None);
             }
 
-            let Ok(mut response) = super::utils::get_with_retries::<3>(&url) else {
+            let Ok(mut response) = ureq::get(&url).call() else {
+                let mut current = current.write().unwrap();
+                current.remove(&player_id);
                 return;
             };
 
