@@ -58,7 +58,7 @@ pub struct CurrentMatch {
     player_ranks: RankAPI,
     player_names: NameAPI,
     rpc: Rc<Mutex<discord::RichPresence>>,
-    current_match: Option<MatchInfo>,
+    match_data: Option<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
     connected_to_rl: bool,
     spotify: mpsc::Sender<SpotifyCommand>,
@@ -88,7 +88,7 @@ impl CurrentMatch {
             rpc: discord,
             player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
-            current_match: None,
+            match_data: None,
             overlay_tx,
             connected_to_rl: false,
             spotify,
@@ -107,11 +107,11 @@ impl CurrentMatch {
     }
 
     fn update_state(&mut self, state: MatchUpdate) {
-        if self.current_match.is_none() {
-            self.current_match = Some(MatchInfo::default());
+        if self.match_data.is_none() {
+            self.match_data = Some(MatchInfo::default());
         }
 
-        let Some(current_match) = self.current_match.as_mut() else {
+        let Some(current_match) = self.match_data.as_mut() else {
             return;
         };
 
@@ -170,11 +170,11 @@ impl CurrentMatch {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
                 RLEvent::MatchStart => {
-                    self.current_match = Some(MatchInfo::default());
+                    self.match_data = Some(MatchInfo::default());
                     self.popup();
                 }
                 RLEvent::MatchOver(winner) => {
-                    if let Some(current_match) = self.current_match.as_mut() {
+                    if let Some(current_match) = self.match_data.as_mut() {
                         if current_match.players.len() <= 1 {
                             return;
                         }
@@ -188,13 +188,13 @@ impl CurrentMatch {
                 RLEvent::MatchLeft => {
                     self.rpc.lock().unwrap().set(discord::State::Lobby);
 
-                    let Some(mut current_match) = self.current_match.take() else {
+                    let Some(mut current_match) = self.match_data.take() else {
                         return;
                     };
 
                     // training
                     if current_match.players.len() <= 1 {
-                        self.current_match = Some(current_match);
+                        self.match_data = Some(current_match);
                         return;
                     }
 
@@ -234,7 +234,7 @@ impl CurrentMatch {
 impl egui::Widget for &CurrentMatch {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
-            if let Some(current_match) = &self.current_match {
+            if let Some(current_match) = &self.match_data {
                 match current_match.players.len() {
                     0 => {
                         ui.label("No players");
