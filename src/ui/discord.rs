@@ -1,7 +1,4 @@
-use std::{
-    rc::Rc,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::{rc::Rc, sync::Mutex};
 
 use eframe::egui;
 use serde::{Deserialize, Serialize};
@@ -16,7 +13,7 @@ pub struct RichPresenceSettings {
 
 pub struct DiscordWidget {
     presence: Rc<Mutex<RichPresence>>,
-    settings: Arc<RwLock<RichPresenceSettings>>,
+    settings: RichPresenceSettings,
 }
 
 impl DiscordWidget {
@@ -39,34 +36,35 @@ impl DiscordWidget {
 
         DiscordWidget {
             presence,
-            settings: Arc::new(RwLock::new(settings)),
+            settings: settings,
         }
     }
 
     pub fn clone_settings(&self) -> RichPresenceSettings {
-        self.settings.read().unwrap().clone()
+        self.settings.clone()
     }
 }
 
-impl egui::Widget for &DiscordWidget {
+impl egui::Widget for &mut DiscordWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let mut settings = self.settings.write().unwrap();
-
         ui.vertical_centered_justified(|ui| {
-            if ui.checkbox(&mut settings.disable, "Disabled").changed() {
-                if settings.disable {
+            if ui
+                .checkbox(&mut self.settings.disable, "Disabled")
+                .changed()
+            {
+                if self.settings.disable {
                     self.presence.lock().unwrap().disconnect();
                 } else {
                     self.presence.lock().unwrap().connect();
                 }
             }
 
-            ui.add_enabled_ui(!settings.disable, |ui| {
+            ui.add_enabled_ui(!self.settings.disable, |ui| {
                 if ui
-                    .checkbox(&mut settings.hide_score, "Hide score")
+                    .checkbox(&mut self.settings.hide_score, "Hide score")
                     .changed()
                 {
-                    if settings.hide_score {
+                    if self.settings.hide_score {
                         self.presence.lock().unwrap().hide_score();
                     } else {
                         self.presence.lock().unwrap().show_score();

@@ -212,7 +212,7 @@ impl eframe::App for RlBuddyApp {
                             match panel {
                                 Panel::Matches => ui.add(&self.matches),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
-                                Panel::DiscordSettings => ui.add(&self.discord),
+                                Panel::DiscordSettings => ui.add(&mut self.discord),
                                 Panel::Spotify => ui.add(&mut self.spotify),
                             };
                         }
