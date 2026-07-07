@@ -1,7 +1,7 @@
 use super::{
     discord::{DiscordWidget, RichPresenceSettings},
     hotkey::{HotkeySettings, HotkeyWidget},
-    matches::Matches,
+    matches::{CurrentMatch, PastMatchesWidget},
     spotify,
 };
 use eframe::egui;
@@ -15,7 +15,8 @@ fn bold_text(text: impl Into<String>) -> egui::RichText {
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
-    Matches,
+    CurrentMatch,
+    PastMatches,
     HotkeySettings,
     DiscordSettings,
     Spotify,
@@ -27,7 +28,8 @@ impl std::fmt::Display for Panel {
             f,
             "{}",
             match self {
-                Panel::Matches => "Matches",
+                Panel::CurrentMatch => "Current Match",
+                Panel::PastMatches => "Past Matches",
                 Panel::HotkeySettings => "Hotkey",
                 Panel::DiscordSettings => "Discord",
                 Panel::Spotify => "Spotify",
@@ -37,11 +39,12 @@ impl std::fmt::Display for Panel {
 }
 
 // note: this determines order
-const ALL_PANELS: [Panel; 4] = [
+const ALL_PANELS: [Panel; 5] = [
+    Panel::CurrentMatch,
     Panel::HotkeySettings,
     Panel::DiscordSettings,
     Panel::Spotify,
-    Panel::Matches,
+    Panel::PastMatches,
 ];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -56,12 +59,13 @@ pub struct RlBuddyApp {
     current_error: Option<String>,
     prev_hide_pos: Option<egui::Pos2>,
     overlay_rx: mpsc::Receiver<bool>,
-
     open_panels: HashSet<Panel>,
-    matches: Matches,
+
+    current_match: CurrentMatch,
     hotkey_settings: HotkeyWidget,
     discord: DiscordWidget,
     spotify: spotify::SpotifyWidget,
+    past_matches: PastMatchesWidget,
 }
 
 impl RlBuddyApp {
@@ -85,6 +89,7 @@ impl RlBuddyApp {
         let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
 
         let spotify_widget = spotify::SpotifyWidget::new(app_data.spotify_data);
+        let past_matches_widget = PastMatchesWidget::new(ctx.clone());
 
         RlBuddyApp {
             error_receiver: errors_rx,
@@ -92,17 +97,19 @@ impl RlBuddyApp {
             overlay_rx,
             prev_hide_pos: None,
 
-            open_panels: HashSet::from([Panel::Matches]),
-            matches: Matches::new(
+            open_panels: HashSet::from([Panel::CurrentMatch]),
+            current_match: CurrentMatch::new(
                 &ctx,
                 Rc::clone(&rich_presence),
                 overlay_tx.clone(),
                 errors_tx,
                 spotify_widget.cmd(),
+                past_matches_widget.cmd(),
             ),
             hotkey_settings: hotkey_widget,
             discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
             spotify: spotify_widget,
+            past_matches: past_matches_widget,
         }
     }
 
@@ -171,7 +178,7 @@ impl eframe::App for RlBuddyApp {
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let connected = self.matches.is_connected();
+                    let connected = self.current_match.is_connected();
 
                     if connected {
                         ui.label(
@@ -212,10 +219,11 @@ impl eframe::App for RlBuddyApp {
 
                                 self.panel_remove_button(ui, &panel.to_string(), panel);
                                 match panel {
-                                    Panel::Matches => ui.add(&self.matches),
+                                    Panel::CurrentMatch => ui.add(&self.current_match),
                                     Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                     Panel::DiscordSettings => ui.add(&mut self.discord),
                                     Panel::Spotify => ui.add(&mut self.spotify),
+                                    Panel::PastMatches => ui.add(&mut self.past_matches),
                                 };
                             }
                         }
@@ -234,6 +242,6 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        self.matches.logic(ctx);
+        self.current_match.logic(ctx);
     }
 }

@@ -50,26 +50,27 @@ fn diff_player_list(current: &mut Vec<MatchPlayer>, mut new_players: Vec<PlayerD
     }
 }
 
-pub struct Matches {
+pub struct CurrentMatch {
     rl_rx: mpsc::Receiver<RLEvent>,
     player_ranks: RankAPI,
     player_names: NameAPI,
     rpc: Rc<Mutex<discord::RichPresence>>,
     current_match: Option<MatchInfo>,
-    prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
     connected_to_rl: bool,
     spotify: mpsc::Sender<SpotifyCommand>,
+    match_over_tx: mpsc::Sender<MatchInfo>,
 }
 
-impl Matches {
+impl CurrentMatch {
     pub fn new(
         ctx: &egui::Context,
         discord: Rc<Mutex<discord::RichPresence>>,
         overlay_tx: mpsc::Sender<bool>,
         errors_tx: mpsc::Sender<String>,
         spotify: mpsc::Sender<SpotifyCommand>,
-    ) -> Matches {
+        match_over_tx: mpsc::Sender<MatchInfo>,
+    ) -> CurrentMatch {
         let (rl_tx, rl_rx) = mpsc::channel();
 
         let ctx_for_statsapi = ctx.clone();
@@ -80,16 +81,16 @@ impl Matches {
             });
         });
 
-        Matches {
+        CurrentMatch {
             rl_rx,
             rpc: discord,
             player_ranks: RankAPI::new(ctx.clone(), errors_tx),
             player_names: NameAPI::new(ctx.clone()),
             current_match: None,
-            prev_match_info: Vec::new(),
             overlay_tx,
             connected_to_rl: false,
             spotify,
+            match_over_tx,
         }
     }
 
@@ -142,7 +143,7 @@ impl Matches {
                         });
                     }
 
-                    self.prev_match_info.insert(0, current_match);
+                    self.match_over_tx.send(current_match).unwrap();
                 }
                 RLEvent::Update(state) => {
                     if self.current_match.is_none() {
@@ -222,7 +223,7 @@ impl Matches {
     }
 }
 
-impl egui::Widget for &Matches {
+impl egui::Widget for &CurrentMatch {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
             if let Some(current_match) = &self.current_match {
@@ -239,12 +240,6 @@ impl egui::Widget for &Matches {
                 }
             } else {
                 ui.label("Not in a match");
-            }
-
-            ui.add_space(4.0);
-            for prev_match in &self.prev_match_info {
-                ui.add(egui::Separator::default().spacing(8.0));
-                ui.add(MatchRenderer::new(prev_match, &self.player_ranks));
             }
         })
         .response
