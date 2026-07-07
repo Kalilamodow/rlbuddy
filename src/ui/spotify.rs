@@ -174,7 +174,7 @@ impl egui::Widget for &mut SpotifyWidget {
                         self.open_authorizer();
                     }
                     return;
-                };
+                }
             }
 
             self.render_currently_playing(ui);

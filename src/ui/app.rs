@@ -82,6 +82,8 @@ impl RlBuddyApp {
         hotkey_widget.start_listening();
 
         let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
+
+        // so matches can use it
         let spotify_widget = Rc::new(RefCell::new(spotify::SpotifyWidget::new(
             app_data.spotify_data,
         )));

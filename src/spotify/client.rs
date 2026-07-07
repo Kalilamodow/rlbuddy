@@ -163,10 +163,17 @@ impl Client {
     }
 
     pub fn pause_playback(&self) {
-        println!("spotify: pausing");
+        ureq::put("https://api.spotify.com/v1/me/player/pause")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send_empty()
+            .unwrap();
     }
+
     pub fn unpause_playback(&self) {
-        println!("spotify: playing");
+        ureq::put("https://api.spotify.com/v1/me/player/play")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send_empty()
+            .unwrap();
     }
 }
 
