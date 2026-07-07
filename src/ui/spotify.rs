@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, Mutex, RwLock, mpsc},
     thread,
     time::{Duration, SystemTime},
 };
@@ -23,7 +23,7 @@ pub struct SpotifySavedata {
 
 #[derive(Debug)]
 pub struct SpotifyWidget {
-    client: Arc<Mutex<Option<spotify::Client>>>,
+    client: Arc<RwLock<Option<spotify::Client>>>,
     currently_playing: Arc<Mutex<Option<spotify::PlaybackState>>>,
     last_poll_time: Arc<Mutex<SystemTime>>,
     pause_during_replay: bool,
@@ -40,7 +40,7 @@ impl SpotifyWidget {
             .map(|s| s.pause_during_replay)
             .unwrap_or_default();
 
-        let client = Arc::new(Mutex::new(
+        let client = Arc::new(RwLock::new(
             savedata
                 .unwrap_or_default()
                 .credentials
@@ -66,7 +66,7 @@ impl SpotifyWidget {
         thread::spawn(move || {
             loop {
                 {
-                    let client = client_for_poller.lock().unwrap();
+                    let client = client_for_poller.read().unwrap();
                     if let Some(client) = client.as_ref() {
                         let new_state = client.get_playback_state();
                         let mut currently_playing = currently_playing_for_poller.lock().unwrap();
@@ -88,7 +88,7 @@ impl SpotifyWidget {
     pub fn save(&self) -> SpotifySavedata {
         let credentials = self
             .client
-            .lock()
+            .read()
             .unwrap()
             .as_ref()
             .map(spotify::Client::save);
@@ -107,7 +107,7 @@ impl SpotifyWidget {
         let client_ref = Arc::clone(&self.client);
         thread::spawn(move || {
             let new_client = spotify::Client::from_scratch();
-            let mut old_client = client_ref.lock().unwrap();
+            let mut old_client = client_ref.write().unwrap();
             *old_client = Some(new_client);
         });
     }
@@ -152,7 +152,7 @@ impl SpotifyWidget {
                 if ui.button("Skip").clicked() {
                     let client = Arc::clone(&self.client);
                     thread::spawn(move || {
-                        let client = client.lock().unwrap();
+                        let client = client.read().unwrap();
                         if let Some(client) = client.as_ref() {
                             client.skip_song();
                         }
@@ -168,7 +168,7 @@ impl egui::Widget for &mut SpotifyWidget {
         while self.pause_during_replay
             && let Ok(cmd) = self.cmd_rx.try_recv()
         {
-            let client = self.client.lock().unwrap();
+            let client = self.client.read().unwrap();
             if let Some(client) = client.as_ref() {
                 match cmd {
                     SpotifyCommand::Play => client.unpause_playback(),
@@ -179,7 +179,7 @@ impl egui::Widget for &mut SpotifyWidget {
 
         ui.vertical(|ui| {
             {
-                let client = self.client.lock().unwrap();
+                let client = self.client.read().unwrap();
                 if client.is_none() {
                     if ui.button("Link Spotify").clicked() {
                         self.open_authorizer();
