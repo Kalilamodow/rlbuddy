@@ -168,7 +168,6 @@ impl egui::Widget for &mut SpotifyWidget {
         while self.pause_during_replay
             && let Ok(cmd) = self.cmd_rx.try_recv()
         {
-            println!("received command: {cmd:?}");
             let client = self.client.lock().unwrap();
             if let Some(client) = client.as_ref() {
                 match cmd {

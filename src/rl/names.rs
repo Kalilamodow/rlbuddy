@@ -54,7 +54,6 @@ impl NameAPI {
             };
 
             let response: GetProfileResponse = response.body_mut().read_json().unwrap();
-            println!("profile data for {player_id}: {response:?}");
             let mut current = current.write().unwrap();
             current.insert(player_id, Some(Arc::new(response.name)));
             context.request_repaint();
