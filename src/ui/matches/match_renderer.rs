@@ -1,5 +1,5 @@
 use super::core::{MatchInfo, MatchPlayer};
-use crate::rl::{EventRanks, Platform, Playlist, Rank, RankAPI, Team, TeamScores};
+use crate::rl::{EventRanks, Platform, Playlist, Rank, Team, TeamScores};
 
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;
@@ -8,12 +8,11 @@ use std::time::{Duration, SystemTime};
 
 pub struct MatchRenderer<'a> {
     match_info: &'a MatchInfo,
-    ranks: &'a RankAPI,
 }
 
 impl<'a> MatchRenderer<'a> {
-    pub fn new(match_info: &'a MatchInfo, ranks: &'a RankAPI) -> MatchRenderer<'a> {
-        MatchRenderer { match_info, ranks }
+    pub fn new(match_info: &'a MatchInfo) -> MatchRenderer<'a> {
+        MatchRenderer { match_info }
     }
 
     fn render_header(&self, ui: &mut egui::Ui) {
@@ -58,14 +57,8 @@ impl<'a> MatchRenderer<'a> {
     }
 
     fn render_player(&mut self, ui: &mut egui::Ui, match_player: &MatchPlayer) {
-        let skill = if match_player.data.platform == Platform::Bot {
-            None
-        } else {
-            self.ranks.get(&match_player.data.platform_id)
-        };
-
         // rank in this gamemode
-        if let Some(skill) = &skill {
+        if let Some(skill) = &match_player.skill {
             self.render_player_rank_cell(ui, skill);
         } else {
             center_label(ui, "-");
@@ -100,7 +93,7 @@ impl<'a> MatchRenderer<'a> {
                 );
             });
 
-            if let Some(skill) = &skill {
+            if let Some(skill) = &match_player.skill {
                 MatchRenderer::render_rank_list(ui, match_player.left, skill);
             }
         });

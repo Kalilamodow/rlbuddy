@@ -89,7 +89,7 @@ impl RlBuddyApp {
         let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
 
         let spotify_widget = spotify::SpotifyWidget::new(app_data.spotify_data);
-        let past_matches_widget = PastMatchesWidget::new(ctx.clone());
+        let past_matches_widget = PastMatchesWidget::new();
 
         RlBuddyApp {
             error_receiver: errors_rx,

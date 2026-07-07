@@ -1,26 +1,20 @@
 use std::sync::mpsc;
 
-use eframe::egui;
-
-use crate::rl::RankAPI;
-
 use super::{core::MatchInfo, match_renderer::MatchRenderer};
+use eframe::egui;
 
 pub struct PastMatchesWidget {
     matches: Vec<MatchInfo>,
-    player_ranks: RankAPI,
     past_matches_tx: mpsc::Sender<MatchInfo>,
     past_matches_rx: mpsc::Receiver<MatchInfo>,
 }
 
 impl PastMatchesWidget {
-    pub fn new(ctx: egui::Context) -> Self {
+    pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
-        let (error_tx, _) = mpsc::channel();
 
         PastMatchesWidget {
             matches: Vec::new(),
-            player_ranks: RankAPI::new(ctx, error_tx),
             past_matches_tx: tx,
             past_matches_rx: rx,
         }
@@ -41,7 +35,7 @@ impl egui::Widget for &mut PastMatchesWidget {
             ui.add_space(4.0);
             for prev_match in &self.matches {
                 ui.add(egui::Separator::default().spacing(8.0));
-                ui.add(MatchRenderer::new(prev_match, &self.player_ranks));
+                ui.add(MatchRenderer::new(prev_match));
             }
         })
         .response

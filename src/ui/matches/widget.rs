@@ -160,6 +160,10 @@ impl CurrentMatch {
                     diff_player_list(&mut current_match.players, state.players);
 
                     for player in &mut current_match.players {
+                        if player.data.platform != Platform::Bot {
+                            player.skill = self.player_ranks.get(&player.data.platform_id);
+                        }
+
                         if is_censored(&player.data.name) {
                             player.uncensor_with(&self.player_names);
                         }
@@ -235,7 +239,7 @@ impl egui::Widget for &CurrentMatch {
                         ui.label("In freeplay");
                     }
                     _ => {
-                        ui.add(MatchRenderer::new(current_match, &self.player_ranks));
+                        ui.add(MatchRenderer::new(current_match));
                     }
                 }
             } else {

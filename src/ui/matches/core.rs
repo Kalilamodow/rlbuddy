@@ -1,12 +1,13 @@
 use std::{sync::Arc, time::SystemTime};
 
-use crate::rl::{NameAPI, Platform, PlayerData, Team, TeamScores};
+use crate::rl::{EventRanks, NameAPI, Platform, PlayerData, Team, TeamScores};
 
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {
     pub left: bool,
     pub uncensored_name: Option<Arc<String>>,
     pub data: PlayerData,
+    pub skill: Option<Arc<EventRanks>>,
 }
 
 impl MatchPlayer {
@@ -43,6 +44,7 @@ impl From<PlayerData> for MatchPlayer {
             left: false,
             uncensored_name: None,
             data: value,
+            skill: None,
         }
     }
 }
