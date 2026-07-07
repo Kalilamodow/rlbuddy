@@ -150,7 +150,7 @@ impl Client {
 
         if r.status() == ureq::http::StatusCode::NO_CONTENT {
             return None;
-        };
+        }
 
         r.into_body().read_json().unwrap()
     }

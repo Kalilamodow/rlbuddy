@@ -34,10 +34,7 @@ impl DiscordWidget {
             }
         }
 
-        DiscordWidget {
-            presence,
-            settings: settings,
-        }
+        DiscordWidget { presence, settings }
     }
 
     pub fn clone_settings(&self) -> RichPresenceSettings {

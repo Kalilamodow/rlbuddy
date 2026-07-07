@@ -34,10 +34,12 @@ pub struct SpotifyWidget {
 
 impl SpotifyWidget {
     pub fn new(savedata: Option<SpotifySavedata>) -> SpotifyWidget {
+        #[allow(clippy::manual_is_variant_and)]
         let pause_during_replay = savedata
             .as_ref()
             .map(|s| s.pause_during_replay)
             .unwrap_or_default();
+
         let client = Arc::new(Mutex::new(
             savedata
                 .unwrap_or_default()
@@ -172,7 +174,7 @@ impl egui::Widget for &mut SpotifyWidget {
                 match cmd {
                     SpotifyCommand::Play => client.unpause_playback(),
                     SpotifyCommand::Pause => client.pause_playback(),
-                };
+                }
             }
         }
 
