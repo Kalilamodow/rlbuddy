@@ -17,7 +17,10 @@ use super::{
 };
 use crate::{
     discord,
-    rl::{NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team, connect_to_stats_api},
+    rl::{
+        MatchUpdate, NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team,
+        connect_to_stats_api,
+    },
 };
 
 fn is_censored(name: &str) -> bool {
@@ -103,6 +106,66 @@ impl CurrentMatch {
         });
     }
 
+    fn update_state(&mut self, state: MatchUpdate) {
+        if self.current_match.is_none() {
+            self.current_match = Some(MatchInfo::default());
+        }
+
+        let Some(current_match) = self.current_match.as_mut() else {
+            return;
+        };
+
+        current_match.max_active_players =
+            current_match.max_active_players.max(state.players.len());
+        current_match.score = state.score;
+        diff_player_list(&mut current_match.players, state.players);
+
+        for player in &mut current_match.players {
+            if player.data.platform != Platform::Bot {
+                player.skill = self.player_ranks.get(&player.data.platform_id);
+            }
+
+            if is_censored(&player.data.name) {
+                player.uncensor_with(&self.player_names);
+            }
+        }
+
+        current_match.our_team = current_match
+            .players
+            .iter()
+            .find(|p| p.data.is_self)
+            .map_or(Team::Blue, |p| p.data.team);
+
+        current_match
+            .players
+            .sort_by_key(|p| p.data.team != current_match.our_team);
+
+        if current_match.players.len() == 1 {
+            self.rpc.lock().unwrap().set(discord::State::Training);
+        } else {
+            let (our, theirs) = match current_match.our_team {
+                Team::Blue => (current_match.score.blue, current_match.score.orange),
+                Team::Orange => (current_match.score.orange, current_match.score.blue),
+            };
+            let winning = match our.cmp(&theirs) {
+                Ordering::Greater => discord::WinState::Winning,
+                Ordering::Less => discord::WinState::Losing,
+                Ordering::Equal => discord::WinState::Tied,
+            };
+
+            self.rpc
+                .lock()
+                .unwrap()
+                .set(discord::State::InGame(discord::GameData {
+                    blue: current_match.score.blue,
+                    orange: current_match.score.orange,
+                    winning,
+                    playlist: Playlist::from_player_count(current_match.max_active_players),
+                    arena: state.arena,
+                }));
+        }
+    }
+
     pub fn logic(&mut self, _ctx: &egui::Context) {
         if let Ok(event) = self.rl_rx.try_recv() {
             match event {
@@ -145,65 +208,7 @@ impl CurrentMatch {
                     self.match_over_tx.send(current_match).unwrap();
                 }
                 RLEvent::Update(state) => {
-                    if self.current_match.is_none() {
-                        self.current_match = Some(MatchInfo::default());
-                    }
-
-                    let Some(current_match) = self.current_match.as_mut() else {
-                        return;
-                    };
-
-                    current_match.max_active_players =
-                        current_match.max_active_players.max(state.players.len());
-                    current_match.score = state.score;
-                    diff_player_list(&mut current_match.players, state.players);
-
-                    for player in &mut current_match.players {
-                        if player.data.platform != Platform::Bot {
-                            player.skill = self.player_ranks.get(&player.data.platform_id);
-                        }
-
-                        if is_censored(&player.data.name) {
-                            player.uncensor_with(&self.player_names);
-                        }
-                    }
-
-                    current_match.our_team = current_match
-                        .players
-                        .iter()
-                        .find(|p| p.data.is_self)
-                        .map_or(Team::Blue, |p| p.data.team);
-
-                    current_match
-                        .players
-                        .sort_by_key(|p| p.data.team != current_match.our_team);
-
-                    if current_match.players.len() == 1 {
-                        self.rpc.lock().unwrap().set(discord::State::Training);
-                    } else {
-                        let (our, theirs) = match current_match.our_team {
-                            Team::Blue => (current_match.score.blue, current_match.score.orange),
-                            Team::Orange => (current_match.score.orange, current_match.score.blue),
-                        };
-                        let winning = match our.cmp(&theirs) {
-                            Ordering::Greater => discord::WinState::Winning,
-                            Ordering::Less => discord::WinState::Losing,
-                            Ordering::Equal => discord::WinState::Tied,
-                        };
-
-                        self.rpc
-                            .lock()
-                            .unwrap()
-                            .set(discord::State::InGame(discord::GameData {
-                                blue: current_match.score.blue,
-                                orange: current_match.score.orange,
-                                winning,
-                                playlist: Playlist::from_player_count(
-                                    current_match.max_active_players,
-                                ),
-                                arena: state.arena,
-                            }));
-                    }
+                    self.update_state(state);
                 }
                 RLEvent::Connected => {
                     self.connected_to_rl = true;
