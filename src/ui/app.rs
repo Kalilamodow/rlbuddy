@@ -36,11 +36,12 @@ impl std::fmt::Display for Panel {
     }
 }
 
+// note: this determines order
 const ALL_PANELS: [Panel; 4] = [
-    Panel::Matches,
     Panel::HotkeySettings,
     Panel::DiscordSettings,
     Panel::Spotify,
+    Panel::Matches,
 ];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -193,30 +194,32 @@ impl eframe::App for RlBuddyApp {
                     ui.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             } else {
-                ui.vertical_centered_justified(|ui| {
-                    if self.open_panels.is_empty() {
-                        ui.label("No panels open");
-                        return;
-                    }
-
-                    let mut is_first = true;
-
-                    for panel in ALL_PANELS {
-                        if self.open_panels.contains(&panel) {
-                            if !is_first {
-                                ui.separator();
-                            }
-                            is_first = false;
-
-                            self.panel_remove_button(ui, &panel.to_string(), panel);
-                            match panel {
-                                Panel::Matches => ui.add(&self.matches),
-                                Panel::HotkeySettings => ui.add(&self.hotkey_settings),
-                                Panel::DiscordSettings => ui.add(&mut self.discord),
-                                Panel::Spotify => ui.add(&mut self.spotify),
-                            };
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.vertical_centered_justified(|ui| {
+                        if self.open_panels.is_empty() {
+                            ui.label("No panels open");
+                            return;
                         }
-                    }
+
+                        let mut is_first = true;
+
+                        for panel in ALL_PANELS {
+                            if self.open_panels.contains(&panel) {
+                                if !is_first {
+                                    ui.separator();
+                                }
+                                is_first = false;
+
+                                self.panel_remove_button(ui, &panel.to_string(), panel);
+                                match panel {
+                                    Panel::Matches => ui.add(&self.matches),
+                                    Panel::HotkeySettings => ui.add(&self.hotkey_settings),
+                                    Panel::DiscordSettings => ui.add(&mut self.discord),
+                                    Panel::Spotify => ui.add(&mut self.spotify),
+                                };
+                            }
+                        }
+                    })
                 });
             }
         });

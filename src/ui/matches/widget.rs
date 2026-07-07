@@ -241,12 +241,11 @@ impl egui::Widget for &Matches {
                 ui.label("Not in a match");
             }
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for prev_match in &self.prev_match_info {
-                    ui.add(egui::Separator::default().spacing(8.0));
-                    ui.add(MatchRenderer::new(prev_match, &self.player_ranks));
-                }
-            });
+            ui.add_space(4.0);
+            for prev_match in &self.prev_match_info {
+                ui.add(egui::Separator::default().spacing(8.0));
+                ui.add(MatchRenderer::new(prev_match, &self.player_ranks));
+            }
         })
         .response
     }
