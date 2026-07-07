@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::spotify::{self, SavedCredentials};
 
+const SPOTIFY_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
 #[derive(Debug)]
 pub enum SpotifyCommand {
     Play,
@@ -21,11 +23,25 @@ pub struct SpotifySavedata {
     pause_during_replay: bool,
 }
 
+fn request_new_state(
+    client: Arc<RwLock<Option<spotify::Client>>>,
+    currently_playing: Arc<Mutex<Option<spotify::PlaybackState>>>,
+) {
+    thread::spawn(move || {
+        let client = client.read().unwrap();
+        if let Some(client) = client.as_ref() {
+            let new_state = client.get_playback_state();
+            let mut currently_playing = currently_playing.lock().unwrap();
+            *currently_playing = new_state;
+        }
+    });
+}
+
 #[derive(Debug)]
 pub struct SpotifyWidget {
     client: Arc<RwLock<Option<spotify::Client>>>,
     currently_playing: Arc<Mutex<Option<spotify::PlaybackState>>>,
-    last_poll_time: Arc<Mutex<SystemTime>>,
+    last_updated_at: SystemTime,
     pause_during_replay: bool,
 
     cmd_tx: mpsc::Sender<SpotifyCommand>,
@@ -50,39 +66,14 @@ impl SpotifyWidget {
         let (cmd_tx, cmd_rx) = mpsc::channel();
 
         let currently_playing = Arc::new(Mutex::new(None));
-        let widget = SpotifyWidget {
-            last_poll_time: Arc::new(Mutex::new(SystemTime::now())),
+        SpotifyWidget {
+            last_updated_at: SystemTime::now(),
             client,
             currently_playing,
             pause_during_replay,
             cmd_tx,
             cmd_rx,
-        };
-
-        // poller
-        let client_for_poller = Arc::clone(&widget.client);
-        let currently_playing_for_poller = Arc::clone(&widget.currently_playing);
-        let last_poll_time_for_poller = Arc::clone(&widget.last_poll_time);
-        thread::spawn(move || {
-            loop {
-                {
-                    let client = client_for_poller.read().unwrap();
-                    if let Some(client) = client.as_ref() {
-                        let new_state = client.get_playback_state();
-                        let mut currently_playing = currently_playing_for_poller.lock().unwrap();
-                        *currently_playing = new_state;
-                    }
-                }
-
-                {
-                    let mut last_poll_time = last_poll_time_for_poller.lock().unwrap();
-                    *last_poll_time = SystemTime::now();
-                }
-                thread::sleep(Duration::from_secs(10));
-            }
-        });
-
-        widget
+        }
     }
 
     pub fn save(&self) -> SpotifySavedata {
@@ -113,33 +104,37 @@ impl SpotifyWidget {
     }
 
     fn render_time_till_next_poll(&self, ui: &mut egui::Ui) {
-        let last_poll_time = self.last_poll_time.lock().unwrap();
         let seconds_since = SystemTime::now()
-            .duration_since(*last_poll_time)
-            .unwrap()
+            .duration_since(self.last_updated_at)
+            .unwrap();
+
+        let until_secs = SPOTIFY_UPDATE_INTERVAL
+            .checked_sub(seconds_since)
+            .unwrap_or_default()
             .as_secs();
-        let until = 10 - seconds_since;
+
         ui.small(format!(
             "Next check in {} second{}",
-            until,
-            if until == 1 { "" } else { "s" }
+            until_secs,
+            if until_secs == 1 { "" } else { "s" }
         ));
 
         ui.request_repaint_after_secs(1.0);
     }
 
-    fn render_currently_playing(&self, ui: &mut egui::Ui) {
-        let currently_playing = self.currently_playing.lock().unwrap();
-        let Some(state) = currently_playing.as_ref() else {
-            ui.label("No track currently playing");
-            self.render_time_till_next_poll(ui);
-            return;
-        };
-
-        let track = &state.track;
-
+    fn render_currently_playing(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            let mut has_song = true;
+
             ui.vertical(|ui| {
+                let currently_playing = self.currently_playing.lock().unwrap();
+                let Some(state) = currently_playing.as_ref() else {
+                    has_song = false;
+                    ui.label("No track currently playing");
+                    return;
+                };
+
+                let track = &state.track;
                 ui.small("Now playing:");
                 ui.label(egui::RichText::new(&track.name).size(16.0));
                 ui.label(&track.artists[0].name);
@@ -147,16 +142,25 @@ impl SpotifyWidget {
 
             ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
                 self.render_time_till_next_poll(ui);
+                if !has_song {
+                    return;
+                }
 
                 ui.add_space(4.0);
                 if ui.button("Skip").clicked() {
-                    let client = Arc::clone(&self.client);
+                    let client_lock = Arc::clone(&self.client);
+                    let currently_playing = Arc::clone(&self.currently_playing);
                     thread::spawn(move || {
-                        let client = client.read().unwrap();
-                        if let Some(client) = client.as_ref() {
+                        let client_guard = client_lock.read().unwrap();
+                        if let Some(client) = client_guard.as_ref() {
                             client.skip_song();
+
+                            drop(client_guard);
+                            request_new_state(client_lock, currently_playing);
                         }
                     });
+
+                    self.last_updated_at = SystemTime::now();
                 }
             });
         });
@@ -175,6 +179,18 @@ impl egui::Widget for &mut SpotifyWidget {
                     SpotifyCommand::Pause => client.pause_playback(),
                 }
             }
+        }
+
+        if SystemTime::now()
+            .duration_since(self.last_updated_at)
+            .unwrap()
+            >= SPOTIFY_UPDATE_INTERVAL
+        {
+            request_new_state(
+                Arc::clone(&self.client),
+                Arc::clone(&self.currently_playing),
+            );
+            self.last_updated_at = SystemTime::now();
         }
 
         ui.vertical(|ui| {
