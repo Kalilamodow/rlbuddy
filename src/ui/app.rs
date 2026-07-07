@@ -28,9 +28,9 @@ impl std::fmt::Display for Panel {
             f,
             "{}",
             match self {
-                Panel::CurrentMatch => "Current Match",
-                Panel::PastMatches => "Past Matches",
-                Panel::HotkeySettings => "Hotkey",
+                Panel::CurrentMatch => "Match",
+                Panel::PastMatches => "History",
+                Panel::HotkeySettings => "Keybind",
                 Panel::DiscordSettings => "Discord",
                 Panel::Spotify => "Spotify",
             }
