@@ -1,6 +1,7 @@
 // Displays the current and past matches
 
 use std::{
+    cell::RefCell,
     cmp::Ordering,
     rc::Rc,
     sync::{Mutex, mpsc},
@@ -11,6 +12,7 @@ use std::{
 use eframe::egui;
 
 use super::{
+    super::spotify::SpotifyWidget,
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
@@ -58,6 +60,7 @@ pub struct Matches {
     prev_match_info: Vec<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
     connected_to_rl: bool,
+    spotify: Rc<RefCell<SpotifyWidget>>,
 }
 
 impl Matches {
@@ -66,6 +69,7 @@ impl Matches {
         discord: Rc<Mutex<discord::RichPresence>>,
         overlay_tx: mpsc::Sender<bool>,
         errors_tx: mpsc::Sender<String>,
+        spotify: Rc<RefCell<SpotifyWidget>>,
     ) -> Matches {
         let (rl_tx, rl_rx) = mpsc::channel();
 
@@ -86,6 +90,7 @@ impl Matches {
             prev_match_info: Vec::new(),
             overlay_tx,
             connected_to_rl: false,
+            spotify,
         }
     }
 
@@ -202,6 +207,18 @@ impl Matches {
                 }
                 RLEvent::Disconnected => {
                     self.connected_to_rl = false;
+                }
+                RLEvent::ReplayStart => {
+                    let spotify = self.spotify.borrow();
+                    if spotify.should_pause_during_replay() {
+                        spotify.pause();
+                    }
+                }
+                RLEvent::ReplayDone => {
+                    let spotify = self.spotify.borrow();
+                    if spotify.should_pause_during_replay() {
+                        spotify.play();
+                    }
                 }
             }
         }

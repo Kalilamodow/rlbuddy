@@ -1,16 +1,12 @@
-use crate::{
-    spotify,
-    ui::discord::{DiscordWidget, RichPresenceSettings},
-};
-
 use super::{
+    discord::{DiscordWidget, RichPresenceSettings},
     hotkey::{HotkeySettings, HotkeyWidget},
     matches::Matches,
-    spotify::SpotifyWidget,
+    spotify,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc;
+use std::{cell::RefCell, sync::mpsc};
 use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 fn bold_text(text: impl Into<String>) -> egui::RichText {
@@ -51,7 +47,7 @@ const ALL_PANELS: [Panel; 4] = [
 struct AppData {
     hotkey_settings: Option<HotkeySettings>,
     rich_presence_settings: Option<RichPresenceSettings>,
-    spotify_data: Option<spotify::SavedCredentials>,
+    spotify_data: Option<spotify::SpotifySavedata>,
 }
 
 pub struct RlBuddyApp {
@@ -64,7 +60,7 @@ pub struct RlBuddyApp {
     matches: Matches,
     hotkey_settings: HotkeyWidget,
     discord: DiscordWidget,
-    spotify: SpotifyWidget,
+    spotify: Rc<RefCell<spotify::SpotifyWidget>>,
 }
 
 impl RlBuddyApp {
@@ -86,6 +82,9 @@ impl RlBuddyApp {
         hotkey_widget.start_listening();
 
         let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
+        let spotify_widget = Rc::new(RefCell::new(spotify::SpotifyWidget::new(
+            app_data.spotify_data,
+        )));
 
         RlBuddyApp {
             error_receiver: errors_rx,
@@ -99,10 +98,11 @@ impl RlBuddyApp {
                 Rc::clone(&rich_presence),
                 overlay_tx.clone(),
                 errors_tx,
+                Rc::clone(&spotify_widget),
             ),
             hotkey_settings: hotkey_widget,
             discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
-            spotify: SpotifyWidget::new(app_data.spotify_data),
+            spotify: spotify_widget,
         }
     }
 
@@ -154,7 +154,7 @@ impl eframe::App for RlBuddyApp {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
             rich_presence_settings: Some(self.discord.clone_settings()),
-            spotify_data: self.spotify.save(),
+            spotify_data: Some(self.spotify.borrow().save()),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
@@ -214,7 +214,7 @@ impl eframe::App for RlBuddyApp {
                                 Panel::Matches => ui.add(&self.matches),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                 Panel::DiscordSettings => ui.add(&self.discord),
-                                Panel::Spotify => ui.add(&self.spotify),
+                                Panel::Spotify => ui.add(&mut *self.spotify.borrow_mut()),
                             };
                         }
                     }

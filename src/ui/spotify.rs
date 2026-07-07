@@ -5,22 +5,43 @@ use std::{
 };
 
 use eframe::egui;
+use serde::{Deserialize, Serialize};
 
 use crate::spotify::{self, SavedCredentials};
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct SpotifySavedata {
+    credentials: Option<SavedCredentials>,
+    pause_during_replay: bool,
+}
 
 #[derive(Debug)]
 pub struct SpotifyWidget {
     client: Arc<Mutex<Option<spotify::Client>>>,
     currently_playing: Arc<Mutex<Option<spotify::PlaybackState>>>,
     last_poll_time: Arc<Mutex<SystemTime>>,
+    pause_during_replay: bool,
 }
 
 impl SpotifyWidget {
-    pub fn new(credentials: Option<spotify::SavedCredentials>) -> SpotifyWidget {
+    pub fn new(savedata: Option<SpotifySavedata>) -> SpotifyWidget {
+        let pause_during_replay = savedata
+            .as_ref()
+            .map(|s| s.pause_during_replay)
+            .unwrap_or_default();
+        let client = Arc::new(Mutex::new(
+            savedata
+                .unwrap_or_default()
+                .credentials
+                .map(spotify::Client::from_saved),
+        ));
+
+        let currently_playing = Arc::new(Mutex::new(None));
         let widget = SpotifyWidget {
-            client: Arc::new(Mutex::new(credentials.map(spotify::Client::from_saved))),
-            currently_playing: Arc::new(Mutex::new(None)),
             last_poll_time: Arc::new(Mutex::new(SystemTime::now())),
+            client,
+            currently_playing,
+            pause_during_replay,
         };
 
         // poller
@@ -49,12 +70,38 @@ impl SpotifyWidget {
         widget
     }
 
-    pub fn save(&self) -> Option<SavedCredentials> {
-        self.client
+    pub fn save(&self) -> SpotifySavedata {
+        let credentials = self
+            .client
             .lock()
             .unwrap()
             .as_ref()
-            .map(spotify::Client::save)
+            .map(spotify::Client::save);
+
+        SpotifySavedata {
+            credentials,
+            pause_during_replay: self.pause_during_replay,
+        }
+    }
+
+    pub fn play(&self) {
+        let client = self.client.lock().unwrap();
+        let Some(client) = client.as_ref() else {
+            return;
+        };
+        client.unpause_playback();
+    }
+
+    pub fn pause(&self) {
+        let client = self.client.lock().unwrap();
+        let Some(client) = client.as_ref() else {
+            return;
+        };
+        client.pause_playback();
+    }
+
+    pub fn should_pause_during_replay(&self) -> bool {
+        self.pause_during_replay
     }
 
     pub fn open_authorizer(&self) {
@@ -117,7 +164,7 @@ impl SpotifyWidget {
     }
 }
 
-impl egui::Widget for &SpotifyWidget {
+impl egui::Widget for &mut SpotifyWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
             {
@@ -131,6 +178,7 @@ impl egui::Widget for &SpotifyWidget {
             }
 
             self.render_currently_playing(ui);
+            ui.checkbox(&mut self.pause_during_replay, "Pause during replay");
         })
         .response
     }

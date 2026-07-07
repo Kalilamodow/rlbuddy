@@ -161,6 +161,13 @@ impl Client {
             .send_empty()
             .unwrap();
     }
+
+    pub fn pause_playback(&self) {
+        println!("spotify: pausing");
+    }
+    pub fn unpause_playback(&self) {
+        println!("spotify: playing");
+    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -203,6 +203,9 @@ pub enum RLEvent {
     MatchOver(Team), // winner
     MatchLeft,
 
+    ReplayStart,
+    ReplayDone,
+
     Connected,
     Disconnected,
 }
@@ -276,6 +279,12 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
                 }
                 "MatchDestroyed" => {
                     on_event(RLEvent::MatchLeft);
+                }
+                "GoalReplayStart" => {
+                    on_event(RLEvent::ReplayStart);
+                }
+                "GoalReplayEnd" => {
+                    on_event(RLEvent::ReplayDone);
                 }
                 _ => {}
             }
