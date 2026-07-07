@@ -205,7 +205,10 @@ impl egui::Widget for &mut SpotifyWidget {
             }
 
             self.render_currently_playing(ui);
-            ui.checkbox(&mut self.pause_during_replay, "Pause during replay");
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                ui.checkbox(&mut self.pause_during_replay, "Pause during replay");
+            });
         })
         .response
     }
