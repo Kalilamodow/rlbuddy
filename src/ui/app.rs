@@ -103,17 +103,6 @@ impl RlBuddyApp {
         }
     }
 
-    fn set_connected_status(&mut self, ctx: &egui::Context, connected: bool) {
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
-            "rlbuddy ({})",
-            if connected {
-                "Connected"
-            } else {
-                "Not connected"
-            }
-        )));
-    }
-
     fn show(&mut self, ctx: &egui::Context) {
         self.prev_hide_pos = ctx.input(|i| {
             i.viewport()
@@ -168,7 +157,16 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.set_connected_status(ui.ctx(), self.current_match.is_connected_to_rl());
+        ui.ctx()
+            .send_viewport_cmd(egui::ViewportCommand::Title(format!(
+                "rlbuddy ({})",
+                if self.current_match.is_connected_to_rl() {
+                    "Connected"
+                } else {
+                    "Not connected"
+                }
+            )));
+
         egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 for panel in ALL_PANELS {
