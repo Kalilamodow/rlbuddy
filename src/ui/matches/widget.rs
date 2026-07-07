@@ -1,7 +1,6 @@
 // Displays the current and past matches
 
 use std::{
-    cmp::Ordering,
     rc::Rc,
     sync::{Mutex, mpsc},
     thread,
@@ -147,21 +146,16 @@ impl CurrentMatch {
                 Team::Blue => (current_match.score.blue, current_match.score.orange),
                 Team::Orange => (current_match.score.orange, current_match.score.blue),
             };
-            let winning = match our.cmp(&theirs) {
-                Ordering::Greater => discord::WinState::Winning,
-                Ordering::Less => discord::WinState::Losing,
-                Ordering::Equal => discord::WinState::Tied,
-            };
 
             self.rpc
                 .lock()
                 .unwrap()
                 .set(discord::State::InGame(discord::GameData {
-                    blue: current_match.score.blue,
-                    orange: current_match.score.orange,
-                    winning,
+                    team_score: our,
+                    opp_score: theirs,
                     playlist: Playlist::from_player_count(current_match.max_active_players),
                     arena: state.arena,
+                    state: state.state,
                 }));
         }
     }

@@ -7,6 +7,8 @@ use std::{
     str::FromStr,
 };
 
+use crate::rl::MatchState;
+
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
     #[serde(rename = "Event")]
@@ -37,6 +39,10 @@ struct StatsApiTeamData {
 struct StatsApiGameData {
     teams: [StatsApiTeamData; 2],
     arena: String,
+    #[serde(rename = "bOvertime")]
+    overtime: bool,
+    #[serde(rename = "bReplay")]
+    replay: bool,
 }
 
 impl StatsApiGameData {
@@ -195,6 +201,7 @@ pub struct MatchUpdate {
     pub score: TeamScores,
     pub players: Vec<PlayerData>,
     pub arena: &'static str,
+    pub state: MatchState,
 }
 
 pub enum RLEvent {
@@ -256,6 +263,13 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
                     let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
 
                     on_event(RLEvent::Update(MatchUpdate {
+                        state: if data.game.replay {
+                            MatchState::Replay
+                        } else if data.game.overtime {
+                            MatchState::Overtime
+                        } else {
+                            MatchState::Game
+                        },
                         score: data.game.scores(),
                         arena: super::asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
                         players: data

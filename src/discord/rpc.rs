@@ -1,43 +1,19 @@
-use std::{
-    fmt::Display,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use discord_rich_presence::{
     DiscordIpc, DiscordIpcClient,
     activity::{Activity, Timestamps},
 };
 
-use crate::rl::Playlist;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WinState {
-    Winning,
-    Losing,
-    Tied,
-}
-
-impl Display for WinState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                WinState::Losing => "Losing",
-                WinState::Winning => "Winning",
-                WinState::Tied => "Tied",
-            }
-        )
-    }
-}
+use crate::rl::{MatchState, Playlist};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameData {
-    pub blue: u8,
-    pub orange: u8,
-    pub winning: WinState,
+    pub team_score: u8,
+    pub opp_score: u8,
     pub playlist: Option<Playlist>,
     pub arena: &'static str,
+    pub state: MatchState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,7 +88,7 @@ impl RichPresence {
             State::Lobby => activity.details("Main menu"),
             State::Training => activity.details("In training"),
             State::InGame(data) => {
-                let mut activity = activity.details(format!(
+                let mut details = format!(
                     "{} in {}",
                     data.playlist
                         .as_ref()
@@ -120,14 +96,13 @@ impl RichPresence {
                         .as_deref()
                         .unwrap_or("Playing"),
                     data.arena
-                ));
+                );
 
                 if self.should_show_score {
-                    activity =
-                        activity.state(format!("{} {}-{}", data.winning, data.blue, data.orange));
+                    details += format!(" | {}-{}", data.team_score, data.opp_score).as_str();
                 }
 
-                activity
+                activity.state(data.state.as_str()).details(details)
             }
         };
 
