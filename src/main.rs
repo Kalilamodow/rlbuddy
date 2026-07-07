@@ -15,7 +15,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "Lobby info",
+        "rlbuddy (Not connected)",
         gui_options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);

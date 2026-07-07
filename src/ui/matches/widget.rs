@@ -218,7 +218,7 @@ impl CurrentMatch {
         }
     }
 
-    pub fn is_connected(&self) -> bool {
+    pub fn is_connected_to_rl(&self) -> bool {
         self.connected_to_rl
     }
 }
