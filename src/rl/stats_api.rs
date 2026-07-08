@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::rl::MatchState;
+use crate::rl::{MatchState, RLEvent::OurPlayerId};
 
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
@@ -26,12 +26,19 @@ struct StatsApiPlayerData {
     primary_id: String,
     team_num: u8,
     score: u16,
+    shortcut: u8,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct StatsApiTeamData {
     score: u8,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct StatsApiPlayerTargetData {
+    shortcut: u8,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +50,7 @@ struct StatsApiGameData {
     overtime: bool,
     #[serde(rename = "bReplay")]
     replay: bool,
+    target: Option<StatsApiPlayerTargetData>,
 }
 
 impl StatsApiGameData {
@@ -165,21 +173,18 @@ pub struct PlayerData {
     pub platform_id: String,
     pub team: Team,
     pub score: u16,
-    pub is_self: bool,
 }
 
-fn parse_stats_api_player(data: (usize, StatsApiPlayerData)) -> Option<PlayerData> {
-    let (index, value) = data;
-    let parts: Vec<&str> = value.primary_id.split('|').collect();
+fn parse_stats_api_player(player: StatsApiPlayerData) -> Option<PlayerData> {
+    let parts: Vec<&str> = player.primary_id.split('|').collect();
 
     if let Ok(platform) = Platform::from_str(parts[0]) {
         Some(PlayerData {
-            name: value.name,
+            name: player.name,
             platform,
-            platform_id: value.primary_id,
-            team: value.team_num.into(),
-            is_self: index == 0,
-            score: value.score,
+            platform_id: player.primary_id,
+            team: player.team_num.into(),
+            score: player.score,
         })
     } else {
         None
@@ -215,6 +220,8 @@ pub enum RLEvent {
 
     Connected,
     Disconnected,
+
+    OurPlayerId(String),
 }
 
 // cant use connect_timeout bc it just errors instead of waiting when the
@@ -229,6 +236,7 @@ fn connect_forever() -> TcpStream {
 
 pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
     let mut read_buffer = vec![0u8; 4096];
+    let mut local_player_id_event_emitted_yet = false;
 
     loop {
         let mut tcp = connect_forever();
@@ -262,6 +270,18 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
                 "UpdateState" => {
                     let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
 
+                    if !local_player_id_event_emitted_yet
+                        && let Some(game_target) = data.game.target.as_ref()
+                    {
+                        let target_shortcut = game_target.shortcut;
+                        let our_player =
+                            data.players.iter().find(|p| p.shortcut == target_shortcut);
+                        if let Some(player) = our_player {
+                            on_event(OurPlayerId(player.primary_id.clone()));
+                            local_player_id_event_emitted_yet = true;
+                        }
+                    }
+
                     on_event(RLEvent::Update(MatchUpdate {
                         state: if data.game.replay {
                             MatchState::Replay
@@ -275,7 +295,6 @@ pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
                         players: data
                             .players
                             .into_iter()
-                            .enumerate()
                             .filter_map(parse_stats_api_player)
                             .collect(),
                     }));

@@ -61,6 +61,7 @@ pub struct CurrentMatch {
     discord: mpsc::Sender<DiscordCommand>,
     spotify: mpsc::Sender<SpotifyCommand>,
     match_over_tx: mpsc::Sender<MatchInfo>,
+    local_player_id: Option<String>,
 }
 
 impl CurrentMatch {
@@ -91,6 +92,7 @@ impl CurrentMatch {
             discord,
             spotify,
             match_over_tx,
+            local_player_id: None,
         }
     }
 
@@ -123,6 +125,10 @@ impl CurrentMatch {
                 player.skill = self.player_ranks.get(&player.data.platform_id);
             }
 
+            if Some(&player.data.platform_id) == self.local_player_id.as_ref() {
+                player.is_local_player = Some(true);
+            }
+
             if is_censored(&player.data.name) {
                 player.uncensor_with(&self.player_names);
             }
@@ -131,7 +137,7 @@ impl CurrentMatch {
         current_match.our_team = current_match
             .players
             .iter()
-            .find(|p| p.data.is_self)
+            .find(|p| p.is_local_player.unwrap_or_default())
             .map_or(Team::Blue, |p| p.data.team);
 
         current_match
@@ -219,6 +225,9 @@ impl CurrentMatch {
                 }
                 RLEvent::ReplayDone => {
                     self.spotify.send(SpotifyCommand::Play).unwrap();
+                }
+                RLEvent::OurPlayerId(id) => {
+                    self.local_player_id = Some(id);
                 }
             }
         }

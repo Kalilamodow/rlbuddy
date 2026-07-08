@@ -8,6 +8,7 @@ pub struct MatchPlayer {
     pub uncensored_name: Option<Arc<String>>,
     pub data: PlayerData,
     pub skill: Option<Arc<EventRanks>>,
+    pub is_local_player: Option<bool>,
 }
 
 impl MatchPlayer {
@@ -45,6 +46,7 @@ impl From<PlayerData> for MatchPlayer {
             uncensored_name: None,
             data: value,
             skill: None,
+            is_local_player: None,
         }
     }
 }
