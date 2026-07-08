@@ -117,14 +117,20 @@ impl CurrentMatch {
             current_match.players.push(MatchPlayer {
                 is_local_player: Some(&remaining_player.name) == self.local_player_id.as_ref(),
                 left: false,
-                uncensored_name: is_censored(&remaining_player.name)
-                    .then(|| self.player_names.get(&remaining_player.platform_id))
-                    .flatten(),
-                skill: (remaining_player.platform != Platform::Bot)
-                    .then(|| self.player_ranks.get(&remaining_player.platform_id))
-                    .flatten(),
+                uncensored_name: None,
+                skill: None,
                 data: remaining_player,
             });
+        }
+
+        for player in &mut current_match.players {
+            if player.data.platform != Platform::Bot {
+                player.skill = self.player_ranks.get(&player.data.platform_id);
+            }
+
+            if is_censored(player.display_name()) {
+                player.uncensored_name = self.player_names.get(&player.data.platform_id);
+            }
         }
 
         current_match.our_team = current_match
