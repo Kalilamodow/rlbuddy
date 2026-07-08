@@ -17,38 +17,11 @@ use super::{
     match_renderer::MatchRenderer,
 };
 use crate::rl::{
-    MatchUpdate, NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team,
-    connect_to_stats_api,
+    MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team, connect_to_stats_api,
 };
 
 fn is_censored(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c == '*')
-}
-
-fn diff_player_list(current: &mut Vec<MatchPlayer>, mut new_players: Vec<PlayerData>) {
-    // bots all share the same id so replace it for comparisons
-    for player_or_bot_hmm in &mut new_players {
-        if player_or_bot_hmm.platform == Platform::Bot {
-            player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
-        }
-    }
-
-    for player in current.iter_mut() {
-        let updated_pos = new_players
-            .iter()
-            .position(|p| p.platform_id == player.data.platform_id);
-        if let Some(updated_pos) = updated_pos {
-            let updated = new_players.swap_remove(updated_pos);
-            player.data = updated;
-            player.left = false;
-        } else {
-            player.left = true;
-        }
-    }
-
-    for remaining_to_add in new_players {
-        current.push(remaining_to_add.into());
-    }
 }
 
 pub struct CurrentMatch {
@@ -106,7 +79,7 @@ impl CurrentMatch {
         });
     }
 
-    fn update_state(&mut self, state: MatchUpdate) {
+    fn update_state(&mut self, mut updated: MatchUpdate) {
         if self.match_data.is_none() {
             self.match_data = Some(MatchInfo::default());
         }
@@ -116,28 +89,48 @@ impl CurrentMatch {
         };
 
         current_match.max_active_players =
-            current_match.max_active_players.max(state.players.len());
-        current_match.score = state.score;
-        diff_player_list(&mut current_match.players, state.players);
+            current_match.max_active_players.max(updated.players.len());
+        current_match.score = updated.score;
+
+        // bots all share the same id so replace it for comparisons
+        for player_or_bot_hmm in &mut updated.players {
+            if player_or_bot_hmm.platform == Platform::Bot {
+                player_or_bot_hmm.platform_id = player_or_bot_hmm.name.clone();
+            }
+        }
 
         for player in &mut current_match.players {
-            if player.data.platform != Platform::Bot {
-                player.skill = self.player_ranks.get(&player.data.platform_id);
+            let updated_pos = updated
+                .players
+                .iter()
+                .position(|p| p.platform_id == player.data.platform_id);
+            if let Some(updated_pos) = updated_pos {
+                let updated = updated.players.swap_remove(updated_pos);
+                player.data = updated;
+                player.left = false;
+            } else {
+                player.left = true;
             }
+        }
 
-            if Some(&player.data.platform_id) == self.local_player_id.as_ref() {
-                player.is_local_player = Some(true);
-            }
-
-            if is_censored(&player.data.name) {
-                player.uncensor_with(&self.player_names);
-            }
+        for remaining_player in updated.players {
+            current_match.players.push(MatchPlayer {
+                is_local_player: Some(&remaining_player.name) == self.local_player_id.as_ref(),
+                left: false,
+                uncensored_name: is_censored(&remaining_player.name)
+                    .then(|| self.player_names.get(&remaining_player.platform_id))
+                    .flatten(),
+                skill: (remaining_player.platform != Platform::Bot)
+                    .then(|| self.player_ranks.get(&remaining_player.platform_id))
+                    .flatten(),
+                data: remaining_player,
+            });
         }
 
         current_match.our_team = current_match
             .players
             .iter()
-            .find(|p| p.is_local_player.unwrap_or_default())
+            .find(|p| p.is_local_player)
             .map_or(Team::Blue, |p| p.data.team);
 
         current_match
@@ -160,8 +153,8 @@ impl CurrentMatch {
                         team_score: our,
                         opp_score: theirs,
                         playlist: Playlist::from_player_count(current_match.max_active_players),
-                        arena: state.arena,
-                        state: state.state,
+                        arena: updated.arena,
+                        state: updated.state,
                     },
                 )))
                 .unwrap();

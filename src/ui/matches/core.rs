@@ -8,7 +8,7 @@ pub struct MatchPlayer {
     pub uncensored_name: Option<Arc<String>>,
     pub data: PlayerData,
     pub skill: Option<Arc<EventRanks>>,
-    pub is_local_player: Option<bool>,
+    pub is_local_player: bool,
 }
 
 impl MatchPlayer {
@@ -36,18 +36,6 @@ impl MatchPlayer {
         Some(format!(
             "https://rocketleague.tracker.network/rocket-league/profile/{prefix}/{id}/overview"
         ))
-    }
-}
-
-impl From<PlayerData> for MatchPlayer {
-    fn from(value: PlayerData) -> Self {
-        MatchPlayer {
-            left: false,
-            uncensored_name: None,
-            data: value,
-            skill: None,
-            is_local_player: None,
-        }
     }
 }
 

@@ -70,7 +70,7 @@ impl<'a> MatchRenderer<'a> {
             ui.horizontal(|ui| {
                 let name_color = if match_player.left {
                     Color32::GRAY
-                } else if match_player.is_local_player.unwrap_or_default() {
+                } else if match_player.is_local_player {
                     ui.visuals().strong_text_color()
                 } else {
                     match match_player.data.team {
