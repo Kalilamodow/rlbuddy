@@ -1,8 +1,7 @@
 // Displays the current and past matches
 
 use std::{
-    rc::Rc,
-    sync::{Mutex, mpsc},
+    sync::mpsc,
     thread,
     time::{Duration, SystemTime},
 };
@@ -10,16 +9,16 @@ use std::{
 use eframe::egui;
 
 use super::{
-    super::spotify::SpotifyCommand,
+    super::{
+        discord::{self, DiscordCommand},
+        spotify::SpotifyCommand,
+    },
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
-use crate::{
-    discord,
-    rl::{
-        MatchUpdate, NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team,
-        connect_to_stats_api,
-    },
+use crate::rl::{
+    MatchUpdate, NameAPI, Platform, PlayerData, Playlist, RLEvent, RankAPI, Team,
+    connect_to_stats_api,
 };
 
 fn is_censored(name: &str) -> bool {
@@ -56,10 +55,10 @@ pub struct CurrentMatch {
     rl_rx: mpsc::Receiver<RLEvent>,
     player_ranks: RankAPI,
     player_names: NameAPI,
-    rpc: Rc<Mutex<discord::RichPresence>>,
     match_data: Option<MatchInfo>,
     overlay_tx: mpsc::Sender<bool>,
     connected_to_rl: bool,
+    discord: mpsc::Sender<DiscordCommand>,
     spotify: mpsc::Sender<SpotifyCommand>,
     match_over_tx: mpsc::Sender<MatchInfo>,
 }
@@ -67,7 +66,7 @@ pub struct CurrentMatch {
 impl CurrentMatch {
     pub fn new(
         ctx: &egui::Context,
-        discord: Rc<Mutex<discord::RichPresence>>,
+        discord: mpsc::Sender<DiscordCommand>,
         overlay_tx: mpsc::Sender<bool>,
         spotify: mpsc::Sender<SpotifyCommand>,
         match_over_tx: mpsc::Sender<MatchInfo>,
@@ -84,12 +83,12 @@ impl CurrentMatch {
 
         CurrentMatch {
             rl_rx,
-            rpc: discord,
             player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
             match_data: None,
             overlay_tx,
             connected_to_rl: false,
+            discord,
             spotify,
             match_over_tx,
         }
@@ -140,23 +139,26 @@ impl CurrentMatch {
             .sort_by_key(|p| p.data.team != current_match.our_team);
 
         if current_match.players.len() == 1 {
-            self.rpc.lock().unwrap().set(discord::State::Training);
+            self.discord
+                .send(DiscordCommand::UpdateState(discord::GameState::Lobby))
+                .unwrap();
         } else {
             let (our, theirs) = match current_match.our_team {
                 Team::Blue => (current_match.score.blue, current_match.score.orange),
                 Team::Orange => (current_match.score.orange, current_match.score.blue),
             };
 
-            self.rpc
-                .lock()
-                .unwrap()
-                .set(discord::State::InGame(discord::GameData {
-                    team_score: our,
-                    opp_score: theirs,
-                    playlist: Playlist::from_player_count(current_match.max_active_players),
-                    arena: state.arena,
-                    state: state.state,
-                }));
+            self.discord
+                .send(DiscordCommand::UpdateState(discord::GameState::InGame(
+                    discord::MatchData {
+                        team_score: our,
+                        opp_score: theirs,
+                        playlist: Playlist::from_player_count(current_match.max_active_players),
+                        arena: state.arena,
+                        state: state.state,
+                    },
+                )))
+                .unwrap();
         }
     }
 
@@ -180,7 +182,9 @@ impl CurrentMatch {
                     }
                 }
                 RLEvent::MatchLeft => {
-                    self.rpc.lock().unwrap().set(discord::State::Lobby);
+                    self.discord
+                        .send(DiscordCommand::UpdateState(discord::GameState::Lobby))
+                        .unwrap();
 
                     let Some(mut current_match) = self.match_data.take() else {
                         return;

@@ -6,8 +6,8 @@ use super::{
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::mpsc;
-use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
@@ -79,8 +79,7 @@ impl RlBuddyApp {
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
         hotkey_widget.start_listening();
 
-        let rich_presence = Rc::new(Mutex::new(crate::discord::RichPresence::new()));
-
+        let discord_widget = DiscordWidget::new(app_data.rich_presence_settings);
         let spotify_widget = spotify::SpotifyWidget::new(app_data.spotify_data);
         let past_matches_widget = PastMatchesWidget::new();
 
@@ -91,13 +90,13 @@ impl RlBuddyApp {
             open_panels: HashSet::from([Panel::CurrentMatch]),
             current_match: CurrentMatch::new(
                 &ctx,
-                Rc::clone(&rich_presence),
+                discord_widget.cmd(),
                 overlay_tx.clone(),
                 spotify_widget.cmd(),
                 past_matches_widget.cmd(),
             ),
             hotkey_settings: hotkey_widget,
-            discord: DiscordWidget::new(Rc::clone(&rich_presence), app_data.rich_presence_settings),
+            discord: discord_widget,
             spotify: spotify_widget,
             past_matches: past_matches_widget,
         }
