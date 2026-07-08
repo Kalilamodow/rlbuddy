@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::SystemTime};
 
-use crate::rl::{EventRanks, NameAPI, Platform, PlayerData, Team, TeamScores};
+use crate::rocket_league::{EventRanks, NameAPI, Platform, PlayerData, Team, TeamScores};
 
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {

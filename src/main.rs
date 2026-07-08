@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod discord;
-mod rl;
+mod rocket_league;
 mod spotify;
 mod ui;
 

@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::rl::{MatchState, RLEvent::OurPlayerId};
+use crate::rocket_league::{MatchState, RLEvent::OurPlayerId};
 
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {

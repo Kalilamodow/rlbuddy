@@ -16,7 +16,7 @@ use super::{
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
-use crate::rl::{
+use crate::rocket_league::{
     MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team, connect_to_stats_api,
 };
 

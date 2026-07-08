@@ -5,7 +5,7 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 
 use crate::discord::{PresenceData, RichPresence};
-use crate::rl::{MatchState, Playlist};
+use crate::rocket_league::{MatchState, Playlist};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RichPresenceSettings {
