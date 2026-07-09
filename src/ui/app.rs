@@ -8,8 +8,8 @@ use super::{
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::sync::mpsc;
 use std::{collections::HashSet, sync::Arc};
+use std::{sync::mpsc, time::Duration};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
@@ -54,9 +54,10 @@ struct AppData {
 
 pub struct RlBuddyApp {
     prev_hide_pos: Option<egui::Pos2>,
-    rl_rx: mpsc::Receiver<Arc<RLEvent>>,
     overlay_rx: mpsc::Receiver<bool>,
     open_panels: HashSet<Panel>,
+
+    stats_api: StatsApi,
 
     current_match: CurrentMatch,
     hotkey_settings: HotkeyWidget,
@@ -79,7 +80,6 @@ impl RlBuddyApp {
         };
 
         let stats_api = StatsApi::new();
-        stats_api.start();
 
         let hotkey_widget =
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
@@ -90,14 +90,14 @@ impl RlBuddyApp {
         let past_matches_widget = PastMatchesWidget::new();
 
         RlBuddyApp {
-            rl_rx: stats_api.subscribe(),
             overlay_rx,
             prev_hide_pos: None,
+
+            stats_api,
 
             open_panels: HashSet::from([Panel::CurrentMatch]),
             current_match: CurrentMatch::new(
                 &ctx,
-                &stats_api,
                 discord_widget.cmd(),
                 spotify_widget.cmd(),
                 past_matches_widget.cmd(),
@@ -204,8 +204,10 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        while let Ok(event) = self.rl_rx.try_recv() {
-            match event.as_ref() {
+        let stats_api_latest = Arc::new(self.stats_api.update());
+
+        if let Some(event) = stats_api_latest.as_ref() {
+            match event {
                 RLEvent::Connected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                     "rlbuddy (connected)".to_string(),
                 )),
@@ -224,6 +226,8 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        self.current_match.logic(ctx);
+        self.current_match.logic(ctx, Arc::clone(&stats_api_latest));
+
+        ctx.request_repaint_after(Duration::from_millis(10));
     }
 }

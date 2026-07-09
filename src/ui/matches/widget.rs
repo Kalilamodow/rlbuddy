@@ -1,7 +1,7 @@
 // Displays the current and past matches
 
 use std::{
-    sync::{mpsc, Arc},
+    sync::{Arc, mpsc},
     time::SystemTime,
 };
 
@@ -12,7 +12,7 @@ use super::{
     match_renderer::MatchRenderer,
 };
 use crate::{
-    rocket_league::{MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, StatsApi, Team},
+    rocket_league::{MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team},
     ui::{
         discord::{self, DiscordCommand},
         spotify::SpotifyCommand,
@@ -24,7 +24,6 @@ fn is_censored(name: &str) -> bool {
 }
 
 pub struct CurrentMatch {
-    rl_rx: mpsc::Receiver<Arc<RLEvent>>,
     player_ranks: RankAPI,
     player_names: NameAPI,
     match_data: Option<MatchInfo>,
@@ -37,13 +36,11 @@ pub struct CurrentMatch {
 impl CurrentMatch {
     pub fn new(
         ctx: &egui::Context,
-        stats_api: &StatsApi,
         discord: mpsc::Sender<DiscordCommand>,
         spotify: mpsc::Sender<SpotifyCommand>,
         match_over_tx: mpsc::Sender<MatchInfo>,
     ) -> CurrentMatch {
         CurrentMatch {
-            rl_rx: stats_api.subscribe(),
             player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
             match_data: None,
@@ -142,11 +139,12 @@ impl CurrentMatch {
         }
     }
 
-    pub fn logic(&mut self, _ctx: &egui::Context) {
-        while let Ok(event) = self.rl_rx.try_recv() {
-            match event.as_ref() {
+    pub fn logic(&mut self, ctx: &egui::Context, stats_api_event: Arc<Option<RLEvent>>) {
+        if let Some(event) = stats_api_event.as_ref() {
+            match event {
                 RLEvent::MatchStart => {
                     self.match_data = Some(MatchInfo::default());
+                    ctx.request_repaint();
                 }
                 RLEvent::MatchOver(winner) => {
                     if let Some(current_match) = self.match_data.as_mut() {
@@ -159,6 +157,7 @@ impl CurrentMatch {
                             winner: Some(*winner),
                         });
                     }
+                    ctx.request_repaint();
                 }
                 RLEvent::MatchLeft => {
                     self.discord
@@ -183,9 +182,11 @@ impl CurrentMatch {
                     }
 
                     self.match_over_tx.send(current_match).unwrap();
+                    ctx.request_repaint();
                 }
                 RLEvent::Update(state) => {
                     self.update_state(state.clone());
+                    ctx.request_repaint();
                 }
                 RLEvent::ReplayStart => {
                     self.spotify.send(SpotifyCommand::Pause).unwrap();

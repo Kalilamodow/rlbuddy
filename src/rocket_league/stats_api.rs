@@ -5,9 +5,10 @@ use std::{
     io::Read,
     net::{SocketAddr, TcpStream},
     str::FromStr,
+    time::Duration,
 };
 
-use crate::rocket_league::{MatchState, RLEvent::OurPlayerId};
+use crate::rocket_league::MatchState;
 
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
@@ -224,103 +225,121 @@ pub enum RLEvent {
     OurPlayerId(String),
 }
 
-// cant use connect_timeout bc it just errors instead of waiting when the
-// socket isnt open in the first place
-fn connect_forever() -> TcpStream {
-    loop {
-        if let Ok(tcp) = TcpStream::connect("127.0.0.1:49123".parse::<SocketAddr>().unwrap()) {
-            return tcp;
-        }
-    }
+enum ConnectionState {
+    Connected(TcpStream),
+    Disconnected,
 }
 
-pub fn connect_to_stats_api<F: Fn(RLEvent)>(on_event: F) {
-    let mut read_buffer = vec![0u8; 4096];
-    let mut local_player_id_event_emitted_yet = false;
+pub struct StatsApi {
+    connection: ConnectionState,
+    read_buffer: [u8; 4096],
+    local_player_id_event_emitted_yet: bool,
+    match_created_event_happened: bool,
+}
 
-    loop {
-        let mut tcp = connect_forever();
+impl StatsApi {
+    pub fn new() -> Self {
+        StatsApi {
+            connection: ConnectionState::Disconnected,
+            read_buffer: [0; 4096],
+            local_player_id_event_emitted_yet: false,
+            match_created_event_happened: false,
+        }
+    }
 
-        // MatchInitialized doesnt fire in private matches for some reason
-        // so listen for match created then the first countdown is the "game start"
-        let mut match_created_event_happened = false;
-        on_event(RLEvent::Connected);
-
-        loop {
-            let n_bytes = match tcp.read(&mut read_buffer) {
-                Ok(0) => continue,
-                Ok(b) => b,
-                Err(_) => {
-                    on_event(RLEvent::Disconnected);
-                    break;
-                }
-            };
-
-            let Ok(text) = std::str::from_utf8(&read_buffer[..n_bytes]) else {
-                eprintln!("Failed to decode...");
-                continue;
-            };
-
-            let Ok(event) = serde_json::from_str::<StatsApiEvent>(text) else {
-                // ignore (probably framing issue)
-                continue;
-            };
-
-            match event.event.as_str() {
-                "UpdateState" => {
-                    let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
-
-                    if !local_player_id_event_emitted_yet
-                        && let Some(game_target) = data.game.target.as_ref()
-                    {
-                        let target_shortcut = game_target.shortcut;
-                        let our_player =
-                            data.players.iter().find(|p| p.shortcut == target_shortcut);
-                        if let Some(player) = our_player {
-                            on_event(OurPlayerId(player.primary_id.clone()));
-                            local_player_id_event_emitted_yet = true;
-                        }
+    pub fn update(&mut self) -> Option<RLEvent> {
+        match &mut self.connection {
+            ConnectionState::Connected(stream) => {
+                let n_bytes = match stream.read(&mut self.read_buffer) {
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        return None;
                     }
+                    Ok(0) | Err(_) => {
+                        self.connection = ConnectionState::Disconnected;
+                        self.match_created_event_happened = false;
+                        return Some(RLEvent::Disconnected);
+                    }
+                    Ok(b) => b,
+                };
 
-                    on_event(RLEvent::Update(MatchUpdate {
-                        state: if data.game.replay {
-                            MatchState::Replay
-                        } else if data.game.overtime {
-                            MatchState::Overtime
-                        } else {
-                            MatchState::Game
-                        },
-                        score: data.game.scores(),
-                        arena: super::asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
-                        players: data
-                            .players
-                            .into_iter()
-                            .filter_map(parse_stats_api_player)
-                            .collect(),
-                    }));
-                }
-                "MatchCreated" => {
-                    match_created_event_happened = true;
-                }
-                "CountdownBegin" if match_created_event_happened => {
-                    match_created_event_happened = false;
-                    on_event(RLEvent::MatchStart);
-                }
-                "MatchEnded" => {
-                    let data: MatchEndedEventData = serde_json::from_str(&event.data).unwrap();
-                    on_event(RLEvent::MatchOver(Team::from(data.winner_team_num)));
-                }
-                "MatchDestroyed" => {
-                    on_event(RLEvent::MatchLeft);
-                }
-                "GoalReplayStart" => {
-                    on_event(RLEvent::ReplayStart);
-                }
-                "GoalReplayEnd" => {
-                    on_event(RLEvent::ReplayDone);
-                }
-                _ => {}
+                let Ok(text) = std::str::from_utf8(&self.read_buffer[..n_bytes]) else {
+                    eprintln!("Failed to decode...");
+                    return None;
+                };
+
+                let Ok(event) = serde_json::from_str::<StatsApiEvent>(text) else {
+                    // ignore (probably framing issue)
+                    return None;
+                };
+
+                self.on_api_event(event)
             }
+            ConnectionState::Disconnected => {
+                if let Ok(new_stream) = TcpStream::connect_timeout(
+                    &"127.0.0.1:49123".parse::<SocketAddr>().unwrap(),
+                    Duration::from_millis(3),
+                ) {
+                    new_stream
+                        .set_nonblocking(true)
+                        .expect("set_nonblocking call failed");
+                    self.connection = ConnectionState::Connected(new_stream);
+                    Some(RLEvent::Connected)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn on_api_event(&mut self, event: StatsApiEvent) -> Option<RLEvent> {
+        match event.event.as_str() {
+            "UpdateState" => {
+                let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
+
+                if !self.local_player_id_event_emitted_yet
+                    && let Some(game_target) = data.game.target.as_ref()
+                {
+                    let target_shortcut = game_target.shortcut;
+                    let our_player = data.players.iter().find(|p| p.shortcut == target_shortcut);
+                    if let Some(player) = our_player {
+                        self.local_player_id_event_emitted_yet = true;
+                        return Some(RLEvent::OurPlayerId(player.primary_id.clone()));
+                    }
+                }
+
+                Some(RLEvent::Update(MatchUpdate {
+                    state: if data.game.replay {
+                        MatchState::Replay
+                    } else if data.game.overtime {
+                        MatchState::Overtime
+                    } else {
+                        MatchState::Game
+                    },
+                    score: data.game.scores(),
+                    arena: super::asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
+                    players: data
+                        .players
+                        .into_iter()
+                        .filter_map(parse_stats_api_player)
+                        .collect(),
+                }))
+            }
+            "MatchCreated" => {
+                self.match_created_event_happened = true;
+                None
+            }
+            "CountdownBegin" if self.match_created_event_happened => {
+                self.match_created_event_happened = false;
+                Some(RLEvent::MatchStart)
+            }
+            "MatchEnded" => {
+                let data: MatchEndedEventData = serde_json::from_str(&event.data).unwrap();
+                Some(RLEvent::MatchOver(Team::from(data.winner_team_num)))
+            }
+            "MatchDestroyed" => Some(RLEvent::MatchLeft),
+            "GoalReplayStart" => Some(RLEvent::ReplayStart),
+            "GoalReplayEnd" => Some(RLEvent::ReplayDone),
+            _ => None,
         }
     }
 }
