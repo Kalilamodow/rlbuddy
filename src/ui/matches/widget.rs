@@ -1,7 +1,7 @@
 // Displays the current and past matches
 
 use std::{
-    sync::{Arc, mpsc},
+    sync::{mpsc, Arc},
     time::SystemTime,
 };
 
@@ -143,7 +143,7 @@ impl CurrentMatch {
     }
 
     pub fn logic(&mut self, _ctx: &egui::Context) {
-        if let Ok(event) = self.rl_rx.try_recv() {
+        while let Ok(event) = self.rl_rx.try_recv() {
             match event.as_ref() {
                 RLEvent::MatchStart => {
                     self.match_data = Some(MatchInfo::default());

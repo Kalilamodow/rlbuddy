@@ -204,7 +204,7 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if let Ok(event) = self.rl_rx.try_recv() {
+        while let Ok(event) = self.rl_rx.try_recv() {
             match event.as_ref() {
                 RLEvent::Connected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                     "rlbuddy (connected)".to_string(),
@@ -216,7 +216,7 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        if let Ok(should_overlay) = self.overlay_rx.try_recv() {
+        while let Ok(should_overlay) = self.overlay_rx.try_recv() {
             if should_overlay {
                 self.show(ctx);
             } else {
