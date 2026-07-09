@@ -201,7 +201,7 @@ impl fmt::Display for PlayerData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MatchUpdate {
     pub score: TeamScores,
     pub players: Vec<PlayerData>,

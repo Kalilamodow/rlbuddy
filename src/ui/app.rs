@@ -1,3 +1,5 @@
+use crate::rocket_league::{RLEvent, StatsApi};
+
 use super::{
     discord::{DiscordWidget, RichPresenceSettings},
     hotkey::{HotkeySettings, HotkeyWidget},
@@ -6,8 +8,8 @@ use super::{
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::sync::mpsc;
+use std::{collections::HashSet, sync::Arc};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
@@ -52,6 +54,7 @@ struct AppData {
 
 pub struct RlBuddyApp {
     prev_hide_pos: Option<egui::Pos2>,
+    rl_rx: mpsc::Receiver<Arc<RLEvent>>,
     overlay_rx: mpsc::Receiver<bool>,
     open_panels: HashSet<Panel>,
 
@@ -75,6 +78,9 @@ impl RlBuddyApp {
             AppData::default()
         };
 
+        let stats_api = StatsApi::new();
+        stats_api.start();
+
         let hotkey_widget =
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
         hotkey_widget.start_listening();
@@ -84,14 +90,15 @@ impl RlBuddyApp {
         let past_matches_widget = PastMatchesWidget::new();
 
         RlBuddyApp {
+            rl_rx: stats_api.subscribe(),
             overlay_rx,
             prev_hide_pos: None,
 
             open_panels: HashSet::from([Panel::CurrentMatch]),
             current_match: CurrentMatch::new(
                 &ctx,
+                &stats_api,
                 discord_widget.cmd(),
-                overlay_tx.clone(),
                 spotify_widget.cmd(),
                 past_matches_widget.cmd(),
             ),
@@ -156,16 +163,6 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        ui.ctx()
-            .send_viewport_cmd(egui::ViewportCommand::Title(format!(
-                "rlbuddy ({})",
-                if self.current_match.is_connected_to_rl() {
-                    "Connected"
-                } else {
-                    "Not connected"
-                }
-            )));
-
         egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 for panel in ALL_PANELS {
@@ -207,6 +204,18 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Ok(event) = self.rl_rx.try_recv() {
+            match event.as_ref() {
+                RLEvent::Connected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                    "rlbuddy (connected)".to_string(),
+                )),
+                RLEvent::Disconnected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+                    "rlbuddy (not connected".to_string(),
+                )),
+                _ => {}
+            }
+        }
+
         if let Ok(should_overlay) = self.overlay_rx.try_recv() {
             if should_overlay {
                 self.show(ctx);

@@ -1,23 +1,22 @@
 // Displays the current and past matches
 
 use std::{
-    sync::mpsc,
-    thread,
-    time::{Duration, SystemTime},
+    sync::{Arc, mpsc},
+    time::SystemTime,
 };
 
 use eframe::egui;
 
 use super::{
-    super::{
-        discord::{self, DiscordCommand},
-        spotify::SpotifyCommand,
-    },
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
-use crate::rocket_league::{
-    MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team, connect_to_stats_api,
+use crate::{
+    rocket_league::{MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, StatsApi, Team},
+    ui::{
+        discord::{self, DiscordCommand},
+        spotify::SpotifyCommand,
+    },
 };
 
 fn is_censored(name: &str) -> bool {
@@ -25,12 +24,10 @@ fn is_censored(name: &str) -> bool {
 }
 
 pub struct CurrentMatch {
-    rl_rx: mpsc::Receiver<RLEvent>,
+    rl_rx: mpsc::Receiver<Arc<RLEvent>>,
     player_ranks: RankAPI,
     player_names: NameAPI,
     match_data: Option<MatchInfo>,
-    overlay_tx: mpsc::Sender<bool>,
-    connected_to_rl: bool,
     discord: mpsc::Sender<DiscordCommand>,
     spotify: mpsc::Sender<SpotifyCommand>,
     match_over_tx: mpsc::Sender<MatchInfo>,
@@ -40,43 +37,21 @@ pub struct CurrentMatch {
 impl CurrentMatch {
     pub fn new(
         ctx: &egui::Context,
+        stats_api: &StatsApi,
         discord: mpsc::Sender<DiscordCommand>,
-        overlay_tx: mpsc::Sender<bool>,
         spotify: mpsc::Sender<SpotifyCommand>,
         match_over_tx: mpsc::Sender<MatchInfo>,
     ) -> CurrentMatch {
-        let (rl_tx, rl_rx) = mpsc::channel();
-
-        let ctx_for_statsapi = ctx.clone();
-        thread::spawn(move || {
-            connect_to_stats_api(|event| {
-                rl_tx.send(event).unwrap();
-                ctx_for_statsapi.request_repaint();
-            });
-        });
-
         CurrentMatch {
-            rl_rx,
+            rl_rx: stats_api.subscribe(),
             player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
             match_data: None,
-            overlay_tx,
-            connected_to_rl: false,
-            discord,
-            spotify,
             match_over_tx,
             local_player_id: None,
+            discord,
+            spotify,
         }
-    }
-
-    fn popup(&self) {
-        let overlay_tx = self.overlay_tx.clone();
-        overlay_tx.send(true).unwrap();
-
-        thread::spawn(move || {
-            thread::sleep(Duration::from_secs(3));
-            overlay_tx.send(false).unwrap();
-        });
     }
 
     fn update_state(&mut self, mut updated: MatchUpdate) {
@@ -169,10 +144,9 @@ impl CurrentMatch {
 
     pub fn logic(&mut self, _ctx: &egui::Context) {
         if let Ok(event) = self.rl_rx.try_recv() {
-            match event {
+            match event.as_ref() {
                 RLEvent::MatchStart => {
                     self.match_data = Some(MatchInfo::default());
-                    self.popup();
                 }
                 RLEvent::MatchOver(winner) => {
                     if let Some(current_match) = self.match_data.as_mut() {
@@ -182,7 +156,7 @@ impl CurrentMatch {
 
                         current_match.finish = Some(MatchOverInfo {
                             timestamp: SystemTime::now(),
-                            winner: Some(winner),
+                            winner: Some(*winner),
                         });
                     }
                 }
@@ -211,13 +185,7 @@ impl CurrentMatch {
                     self.match_over_tx.send(current_match).unwrap();
                 }
                 RLEvent::Update(state) => {
-                    self.update_state(state);
-                }
-                RLEvent::Connected => {
-                    self.connected_to_rl = true;
-                }
-                RLEvent::Disconnected => {
-                    self.connected_to_rl = false;
+                    self.update_state(state.clone());
                 }
                 RLEvent::ReplayStart => {
                     self.spotify.send(SpotifyCommand::Pause).unwrap();
@@ -226,14 +194,11 @@ impl CurrentMatch {
                     self.spotify.send(SpotifyCommand::Play).unwrap();
                 }
                 RLEvent::OurPlayerId(id) => {
-                    self.local_player_id = Some(id);
+                    self.local_player_id = Some(id.clone());
                 }
+                _ => {}
             }
         }
-    }
-
-    pub fn is_connected_to_rl(&self) -> bool {
-        self.connected_to_rl
     }
 }
 
