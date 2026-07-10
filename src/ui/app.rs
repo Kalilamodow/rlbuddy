@@ -1,13 +1,12 @@
 use crate::{
     rocket_league::{RLEvent, StatsApi},
-    spotify::{SpotifySavedata, SpotifyService},
+    spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
 };
 
 use super::{
     discord::{DiscordWidget, RichPresenceSettings},
     hotkey::{HotkeySettings, HotkeyWidget},
     matches::{CurrentMatch, PastMatchesWidget},
-    spotify::SpotifyWidget,
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
