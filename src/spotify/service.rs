@@ -9,10 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::rocket_league::RLEvent;
 
-use super::{
-    SavedCredentials,
-    client::{Client, PlaybackState},
-};
+use super::client::{Client, PlaybackState, SavedCredentials};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SpotifySettings {

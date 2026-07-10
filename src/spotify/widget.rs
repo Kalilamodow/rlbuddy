@@ -5,8 +5,9 @@ use std::{
 
 use eframe::egui;
 
-use crate::spotify::{
-    PlaybackState, SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings,
+use super::{
+    client::PlaybackState,
+    service::{SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings},
 };
 
 #[derive(Debug)]
