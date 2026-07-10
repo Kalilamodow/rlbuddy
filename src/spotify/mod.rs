@@ -1,3 +1,5 @@
 mod client;
+mod service;
 
-pub use client::*;
+pub use client::{PlaybackState, SavedCredentials};
+pub use service::*;

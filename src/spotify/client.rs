@@ -156,24 +156,30 @@ impl Client {
     }
 
     pub fn skip_song(&self) {
-        ureq::post("https://api.spotify.com/v1/me/player/next")
+        if let Err(error) = ureq::post("https://api.spotify.com/v1/me/player/next")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
-            .unwrap();
+        {
+            println!("spotify api error: {error:?}");
+        }
     }
 
     pub fn pause_playback(&self) {
-        ureq::put("https://api.spotify.com/v1/me/player/pause")
+        if let Err(error) = ureq::put("https://api.spotify.com/v1/me/player/pause")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
-            .unwrap();
+        {
+            println!("spotify api error: {error:?}");
+        }
     }
 
     pub fn unpause_playback(&self) {
-        ureq::put("https://api.spotify.com/v1/me/player/play")
+        if let Err(error) = ureq::put("https://api.spotify.com/v1/me/player/play")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
-            .unwrap();
+        {
+            println!("spotify api error: {error:?}");
+        }
     }
 }
 

@@ -13,10 +13,7 @@ use super::{
 };
 use crate::{
     rocket_league::{MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team},
-    ui::{
-        discord::{self, DiscordCommand},
-        spotify::SpotifyCommand,
-    },
+    ui::discord::{self, DiscordCommand},
 };
 
 fn is_censored(name: &str) -> bool {
@@ -28,7 +25,6 @@ pub struct CurrentMatch {
     player_names: NameAPI,
     match_data: Option<MatchInfo>,
     discord: mpsc::Sender<DiscordCommand>,
-    spotify: mpsc::Sender<SpotifyCommand>,
     match_over_tx: mpsc::Sender<MatchInfo>,
     local_player_id: Option<String>,
 }
@@ -37,7 +33,6 @@ impl CurrentMatch {
     pub fn new(
         ctx: &egui::Context,
         discord: mpsc::Sender<DiscordCommand>,
-        spotify: mpsc::Sender<SpotifyCommand>,
         match_over_tx: mpsc::Sender<MatchInfo>,
     ) -> CurrentMatch {
         CurrentMatch {
@@ -47,7 +42,6 @@ impl CurrentMatch {
             match_over_tx,
             local_player_id: None,
             discord,
-            spotify,
         }
     }
 
@@ -187,12 +181,6 @@ impl CurrentMatch {
                 RLEvent::Update(state) => {
                     self.update_state(state.clone());
                     ctx.request_repaint();
-                }
-                RLEvent::ReplayStart => {
-                    self.spotify.send(SpotifyCommand::Pause).unwrap();
-                }
-                RLEvent::ReplayDone => {
-                    self.spotify.send(SpotifyCommand::Play).unwrap();
                 }
                 RLEvent::OurPlayerId(id) => {
                     self.local_player_id = Some(id.clone());
