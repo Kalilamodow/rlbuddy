@@ -52,6 +52,10 @@ impl RichPresence {
     }
 
     pub fn send(&mut self, presence: PresenceData) {
+        if !self.is_connected {
+            return;
+        }
+
         if Some(&presence) == self.previous_send.as_ref() {
             return;
         }
