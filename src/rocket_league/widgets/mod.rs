@@ -1,7 +1,6 @@
-mod core;
+mod current_match;
 mod match_renderer;
 mod past_matches;
-mod widget;
 
+pub use current_match::CurrentMatchWidget;
 pub use past_matches::PastMatchesWidget;
-pub use widget::CurrentMatch;

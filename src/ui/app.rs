@@ -1,13 +1,10 @@
 use crate::{
     discord,
-    rocket_league::{RLEvent, StatsApi},
+    rocket_league::{CurrentMatchWidget, MatchesService, PastMatchesWidget, RLEvent, StatsApi},
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
 };
 
-use super::{
-    hotkey::{HotkeySettings, HotkeyWidget},
-    matches::{CurrentMatch, PastMatchesWidget},
-};
+use super::hotkey::{HotkeySettings, HotkeyWidget};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
@@ -67,9 +64,11 @@ pub struct RlBuddyApp {
     discord_service: discord::DiscordService,
     discord_widget: discord::DiscordWidget,
 
-    current_match: CurrentMatch,
-    hotkey_settings: HotkeyWidget,
+    matches_service: MatchesService,
+    current_match: CurrentMatchWidget,
     past_matches: PastMatchesWidget,
+
+    hotkey_settings: HotkeyWidget,
 }
 
 impl RlBuddyApp {
@@ -87,14 +86,12 @@ impl RlBuddyApp {
 
         let stats_api = StatsApi::new();
         let spotify_service = SpotifyService::new(app_data.spotify_data);
+        let discord_service = discord::DiscordService::new(app_data.rich_presence_settings);
+        let matches_service = MatchesService::new(&ctx);
 
         let hotkey_widget =
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
         hotkey_widget.start_listening();
-
-        let discord_service = discord::DiscordService::new(app_data.rich_presence_settings);
-
-        let past_matches_widget = PastMatchesWidget::new();
 
         RlBuddyApp {
             overlay_rx,
@@ -106,11 +103,13 @@ impl RlBuddyApp {
             discord_service,
             discord_widget: discord::DiscordWidget::new(),
 
+            current_match: CurrentMatchWidget::new(matches_service.state_handle()),
+            past_matches: PastMatchesWidget::new(matches_service.state_handle()),
+            matches_service,
+
             open_panels: HashSet::from([Panel::CurrentMatch]),
-            current_match: CurrentMatch::new(&ctx, past_matches_widget.cmd()),
             hotkey_settings: hotkey_widget,
             spotify_widget: SpotifyWidget::new(),
-            past_matches: past_matches_widget,
         }
     }
 
@@ -199,7 +198,7 @@ impl eframe::App for RlBuddyApp {
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                 Panel::DiscordSettings => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
-                                Panel::PastMatches => ui.add(&mut self.past_matches),
+                                Panel::PastMatches => ui.add(&self.past_matches),
                             };
                         }
                     }
@@ -216,6 +215,7 @@ impl eframe::App for RlBuddyApp {
         let discord_latest = self
             .discord_service
             .update(&stats_api_latest, self.discord_widget.get_command());
+        self.matches_service.update(ctx, &stats_api_latest);
 
         if let Some(event) = stats_api_latest.as_ref() {
             match event {
@@ -237,7 +237,6 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        self.current_match.logic(ctx, &stats_api_latest);
         self.spotify_widget.logic(spotify_latest);
         self.discord_widget.logic(&discord_latest);
 

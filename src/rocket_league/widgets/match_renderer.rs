@@ -1,5 +1,6 @@
-use super::core::{MatchInfo, MatchPlayer};
-use crate::rocket_league::{EventRanks, Platform, Playlist, Rank, Team, TeamScores};
+use super::super::{
+    EventRanks, MatchInfo, MatchPlayer, Platform, Playlist, Rank, Team, TeamScores,
+};
 
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;
