@@ -118,7 +118,7 @@ impl DiscordService {
         if let Some(command) = command {
             match command {
                 DiscordCommand::UpdateSettings(new_settings) => {
-                    self.settings = Rc::new(new_settings)
+                    self.settings = Rc::new(new_settings);
                 }
             }
         }
@@ -132,11 +132,10 @@ impl DiscordService {
 
     fn send_current(&mut self) {
         if self.settings.disable {
-            self.rpc.disconnect();
+            self.rpc.ensure_disconnected();
             return;
-        } else {
-            self.rpc.connect();
         }
+        self.rpc.ensure_connected();
 
         let presence = self.current.to_presence(!self.settings.hide_score);
         self.rpc.send(presence);

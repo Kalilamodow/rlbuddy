@@ -101,7 +101,7 @@ impl CurrentMatch {
             .sort_by_key(|p| p.data.team != current_match.our_team);
     }
 
-    pub fn logic(&mut self, ctx: &egui::Context, stats_api_event: Arc<Option<RLEvent>>) {
+    pub fn logic(&mut self, ctx: &egui::Context, stats_api_event: &Arc<Option<RLEvent>>) {
         if let Some(event) = stats_api_event.as_ref() {
             match event {
                 RLEvent::MatchStart => {

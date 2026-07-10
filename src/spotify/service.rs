@@ -72,13 +72,13 @@ impl SpotifyService {
             self.handle_command(command);
         }
 
-        if self.settings.pause_during_replay {
-            if let Some(event) = event.as_ref() {
-                match event {
-                    RLEvent::ReplayStart => self.handle_command(SpotifyCommand::Pause),
-                    RLEvent::ReplayDone => self.handle_command(SpotifyCommand::Play),
-                    _ => {}
-                }
+        if self.settings.pause_during_replay
+            && let Some(event) = event.as_ref()
+        {
+            match event {
+                RLEvent::ReplayStart => self.handle_command(SpotifyCommand::Pause),
+                RLEvent::ReplayDone => self.handle_command(SpotifyCommand::Play),
+                _ => {}
             }
         }
 
@@ -124,13 +124,13 @@ impl SpotifyService {
                 *client = None;
             }
             SpotifyCommand::Play => {
-                self.use_client_in_new_thread(|client| client.unpause_playback());
+                self.use_client_in_new_thread(Client::unpause_playback);
             }
             SpotifyCommand::Pause => {
-                self.use_client_in_new_thread(|client| client.pause_playback());
+                self.use_client_in_new_thread(Client::pause_playback);
             }
             SpotifyCommand::Skip => {
-                self.use_client_in_new_thread(|client| client.skip_song());
+                self.use_client_in_new_thread(Client::skip_song);
             }
             SpotifyCommand::UpdateSettings(new_settings) => {
                 self.settings = Rc::new(new_settings);
@@ -148,7 +148,7 @@ impl SpotifyService {
 
     fn use_client_in_new_thread<F>(&self, fun: F)
     where
-        F: Fn(&Client) -> () + Send + 'static,
+        F: Fn(&Client) + Send + 'static,
     {
         let client_ref = Arc::clone(&self.client);
         thread::spawn(move || {

@@ -237,9 +237,9 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        self.current_match.logic(ctx, Arc::clone(&stats_api_latest));
+        self.current_match.logic(ctx, &stats_api_latest);
         self.spotify_widget.logic(spotify_latest);
-        self.discord_widget.logic(discord_latest);
+        self.discord_widget.logic(&discord_latest);
 
         ctx.request_repaint_after(Duration::from_millis(10));
     }

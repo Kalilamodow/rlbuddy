@@ -19,8 +19,8 @@ impl DiscordWidget {
         self.send_command.take()
     }
 
-    pub fn logic(&mut self, service_state: DiscordServiceState) {
-        self.local_settings = Some(service_state.settings.as_ref().clone())
+    pub fn logic(&mut self, service_state: &DiscordServiceState) {
+        self.local_settings = Some(service_state.settings.as_ref().clone());
     }
 
     fn send_update_settings(&mut self) {

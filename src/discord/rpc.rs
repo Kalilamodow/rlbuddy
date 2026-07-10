@@ -35,7 +35,7 @@ impl RichPresence {
         }
     }
 
-    pub fn connect(&mut self) {
+    pub fn ensure_connected(&mut self) {
         if self.is_connected {
             return;
         }
@@ -44,7 +44,7 @@ impl RichPresence {
         self.is_connected = true;
     }
 
-    pub fn disconnect(&mut self) {
+    pub fn ensure_disconnected(&mut self) {
         if !self.is_connected {
             return;
         }
