@@ -39,7 +39,9 @@ impl RichPresence {
         if self.is_connected {
             return;
         }
+
         self.client.connect().unwrap();
+        self.is_connected = true;
     }
 
     pub fn disconnect(&mut self) {
@@ -47,8 +49,10 @@ impl RichPresence {
             return;
         }
 
+        self.client.clear_activity().unwrap();
         self.client.close().unwrap();
         self.previous_send = None;
+        self.is_connected = false;
     }
 
     pub fn send(&mut self, presence: PresenceData) {
