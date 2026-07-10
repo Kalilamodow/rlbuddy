@@ -11,10 +11,7 @@ use super::{
     core::{MatchInfo, MatchOverInfo, MatchPlayer},
     match_renderer::MatchRenderer,
 };
-use crate::{
-    rocket_league::{MatchUpdate, NameAPI, Platform, Playlist, RLEvent, RankAPI, Team},
-    ui::discord::{self, DiscordCommand},
-};
+use crate::rocket_league::{MatchUpdate, NameAPI, Platform, RLEvent, RankAPI, Team};
 
 fn is_censored(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c == '*')
@@ -24,24 +21,18 @@ pub struct CurrentMatch {
     player_ranks: RankAPI,
     player_names: NameAPI,
     match_data: Option<MatchInfo>,
-    discord: mpsc::Sender<DiscordCommand>,
     match_over_tx: mpsc::Sender<MatchInfo>,
     local_player_id: Option<String>,
 }
 
 impl CurrentMatch {
-    pub fn new(
-        ctx: &egui::Context,
-        discord: mpsc::Sender<DiscordCommand>,
-        match_over_tx: mpsc::Sender<MatchInfo>,
-    ) -> CurrentMatch {
+    pub fn new(ctx: &egui::Context, match_over_tx: mpsc::Sender<MatchInfo>) -> CurrentMatch {
         CurrentMatch {
             player_ranks: RankAPI::new(ctx.clone()),
             player_names: NameAPI::new(ctx.clone()),
             match_data: None,
             match_over_tx,
             local_player_id: None,
-            discord,
         }
     }
 
@@ -108,29 +99,6 @@ impl CurrentMatch {
         current_match
             .players
             .sort_by_key(|p| p.data.team != current_match.our_team);
-
-        if current_match.players.len() == 1 {
-            self.discord
-                .send(DiscordCommand::UpdateState(discord::GameState::Lobby))
-                .unwrap();
-        } else {
-            let (our, theirs) = match current_match.our_team {
-                Team::Blue => (current_match.score.blue, current_match.score.orange),
-                Team::Orange => (current_match.score.orange, current_match.score.blue),
-            };
-
-            self.discord
-                .send(DiscordCommand::UpdateState(discord::GameState::InGame(
-                    discord::MatchData {
-                        team_score: our,
-                        opp_score: theirs,
-                        playlist: Playlist::from_player_count(current_match.max_active_players),
-                        arena: updated.arena,
-                        state: updated.state,
-                    },
-                )))
-                .unwrap();
-        }
     }
 
     pub fn logic(&mut self, ctx: &egui::Context, stats_api_event: Arc<Option<RLEvent>>) {
@@ -154,10 +122,6 @@ impl CurrentMatch {
                     ctx.request_repaint();
                 }
                 RLEvent::MatchLeft => {
-                    self.discord
-                        .send(DiscordCommand::UpdateState(discord::GameState::Lobby))
-                        .unwrap();
-
                     let Some(mut current_match) = self.match_data.take() else {
                         return;
                     };
