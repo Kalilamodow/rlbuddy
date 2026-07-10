@@ -2,9 +2,11 @@ use serde::Deserialize;
 use std::{
     cmp::Ordering,
     fmt,
-    io::Read,
+    io::BufReader,
     net::{SocketAddr, TcpStream},
     str::FromStr,
+    sync::mpsc,
+    thread,
     time::Duration,
 };
 
@@ -225,73 +227,104 @@ pub enum RLEvent {
     OurPlayerId(String),
 }
 
+enum ApiUpdate {
+    Connected,
+    Disconnected,
+    Event(StatsApiEvent),
+}
+
 enum ConnectionState {
-    Connected(TcpStream),
+    Connected(
+        serde_json::StreamDeserializer<
+            'static,
+            serde_json::de::IoRead<BufReader<TcpStream>>,
+            StatsApiEvent,
+        >,
+    ),
     Disconnected,
 }
 
 pub struct StatsApi {
-    connection: ConnectionState,
-    read_buffer: [u8; 4096],
+    event_rx: mpsc::Receiver<ApiUpdate>,
     local_player_id_event_emitted_yet: bool,
     match_created_event_happened: bool,
 }
 
 impl StatsApi {
     pub fn new() -> Self {
+        let (event_tx, event_rx) = mpsc::channel();
+
+        thread::spawn(move || {
+            let mut connection = ConnectionState::Disconnected;
+
+            loop {
+                match &mut connection {
+                    ConnectionState::Connected(conn) => {
+                        let Some(event) = conn.next() else {
+                            // disconnected
+                            connection = ConnectionState::Disconnected;
+                            if event_tx.send(ApiUpdate::Disconnected).is_err() {
+                                println!("[stats api] failed to send disconnected event, quitting");
+                                return;
+                            }
+                            continue;
+                        };
+
+                        let event = match event {
+                            Ok(e) => e,
+                            Err(error) => {
+                                println!("deserialize error: {error:?}");
+                                connection = ConnectionState::Disconnected;
+                                continue;
+                            }
+                        };
+
+                        if event_tx.send(ApiUpdate::Event(event)).is_err() {
+                            println!("[stats api] failed to send event, quitting");
+                            return;
+                        }
+                    }
+                    ConnectionState::Disconnected => {
+                        if let Ok(stream) =
+                            TcpStream::connect("127.0.0.1:49123".parse::<SocketAddr>().unwrap())
+                        {
+                            let reader = BufReader::new(stream);
+                            let deserializer = serde_json::Deserializer::from_reader(reader);
+                            let iter = deserializer.into_iter::<StatsApiEvent>();
+                            connection = ConnectionState::Connected(iter);
+
+                            if event_tx.send(ApiUpdate::Connected).is_err() {
+                                println!("[stats api] failed to send conected event, quitting");
+                                return;
+                            }
+                        } else {
+                            thread::sleep(Duration::from_secs(5));
+                        }
+                    }
+                }
+            }
+        });
+
         StatsApi {
-            connection: ConnectionState::Disconnected,
-            read_buffer: [0; 4096],
+            event_rx,
             local_player_id_event_emitted_yet: false,
             match_created_event_happened: false,
         }
     }
 
     pub fn update(&mut self) -> Option<RLEvent> {
-        match &mut self.connection {
-            ConnectionState::Connected(stream) => {
-                let n_bytes = match stream.read(&mut self.read_buffer) {
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        return None;
-                    }
-                    Ok(0) | Err(_) => {
-                        self.connection = ConnectionState::Disconnected;
-                        self.match_created_event_happened = false;
-                        return Some(RLEvent::Disconnected);
-                    }
-                    Ok(b) => b,
-                };
+        let Ok(event) = self.event_rx.try_recv() else {
+            return None;
+        };
 
-                let Ok(text) = std::str::from_utf8(&self.read_buffer[..n_bytes]) else {
-                    eprintln!("Failed to decode...");
-                    return None;
-                };
-
-                let Ok(event) = serde_json::from_str::<StatsApiEvent>(text) else {
-                    // ignore (probably framing issue)
-                    return None;
-                };
-
-                self.on_api_event(event)
-            }
-            ConnectionState::Disconnected => {
-                if let Ok(new_stream) = TcpStream::connect_timeout(
-                    &"127.0.0.1:49123".parse::<SocketAddr>().unwrap(),
-                    Duration::from_millis(3),
-                ) {
-                    new_stream
-                        .set_nonblocking(true)
-                        .expect("set_nonblocking call failed");
-                    self.connection = ConnectionState::Connected(new_stream);
-                    Some(RLEvent::Connected)
-                } else {
-                    None
-                }
-            }
+        match event {
+            ApiUpdate::Connected => Some(RLEvent::Connected),
+            ApiUpdate::Disconnected => Some(RLEvent::Disconnected),
+            ApiUpdate::Event(evt) => self.on_stats_api_event(&evt),
         }
     }
 
-    fn on_api_event(&mut self, event: StatsApiEvent) -> Option<RLEvent> {
+    fn on_stats_api_event(&mut self, event: &StatsApiEvent) -> Option<RLEvent> {
         match event.event.as_str() {
             "UpdateState" => {
                 let data: UpdateStateEventData = serde_json::from_str(&event.data).unwrap();
