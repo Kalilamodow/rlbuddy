@@ -1,11 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use eframe::egui;
 
-use crate::common::ReadonlyStateHandle;
+use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
 
 use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
 use super::{MatchUpdate, Platform, RLEvent};
@@ -18,7 +16,7 @@ pub struct MatchesServiceState {
 }
 
 pub struct MatchesService {
-    state: Rc<RefCell<MatchesServiceState>>,
+    state: ReadWriteStateHandle<MatchesServiceState>,
 
     local_player_id: Option<String>,
     rank_api: RankAPI,
@@ -28,7 +26,7 @@ pub struct MatchesService {
 impl MatchesService {
     pub fn new(ctx: &egui::Context) -> Self {
         MatchesService {
-            state: Rc::default(),
+            state: ReadWriteStateHandle::default(),
             local_player_id: None,
             rank_api: RankAPI::new(ctx.clone()),
             names_api: NameAPI::new(ctx.clone()),
@@ -40,7 +38,7 @@ impl MatchesService {
     }
 
     fn update_state(&mut self, mut updated: MatchUpdate) {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.write();
 
         if state.current_match.is_none() {
             state.current_match = Some(MatchInfo::default());
@@ -113,7 +111,7 @@ impl MatchesService {
             return;
         };
 
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.write();
         match event {
             RLEvent::MatchStart => {
                 state.current_match = Some(MatchInfo::default());

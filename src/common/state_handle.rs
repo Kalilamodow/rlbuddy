@@ -12,9 +12,9 @@ pub struct ReadonlyStateHandle<T> {
 }
 
 impl<T> ReadonlyStateHandle<T> {
-    pub fn over(state: &Rc<RefCell<T>>) -> Self {
+    pub fn over(rw: &ReadWriteStateHandle<T>) -> Self {
         Self {
-            state: Rc::clone(state),
+            state: Rc::clone(&rw.state),
         }
     }
 
@@ -23,7 +23,7 @@ impl<T> ReadonlyStateHandle<T> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct ReadWriteStateHandle<T> {
     state: Rc<RefCell<T>>,
 }
@@ -32,12 +32,6 @@ impl<T> ReadWriteStateHandle<T> {
     pub fn new(state: T) -> Self {
         Self {
             state: Rc::new(RefCell::new(state)),
-        }
-    }
-
-    pub fn over(state: &Rc<RefCell<T>>) -> Self {
-        Self {
-            state: Rc::clone(state),
         }
     }
 
@@ -67,7 +61,7 @@ impl<T> ThreadedReadonlyStateHandle<T> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct ThreadedReadWriteStateHandle<T> {
     state: Arc<RwLock<T>>,
 }

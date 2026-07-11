@@ -4,7 +4,6 @@ use crate::{
     rocket_league::{MatchState, MatchesServiceState, Playlist, Team},
 };
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchData {
@@ -68,7 +67,7 @@ pub struct DiscordSettings {
 }
 
 pub struct DiscordService {
-    settings: Rc<RefCell<DiscordSettings>>,
+    settings: ReadWriteStateHandle<DiscordSettings>,
     rpc: RichPresence,
     current: GameState,
     matches_handle: ReadonlyStateHandle<MatchesServiceState>,
@@ -80,7 +79,7 @@ impl DiscordService {
         matches_handle: ReadonlyStateHandle<MatchesServiceState>,
     ) -> Self {
         DiscordService {
-            settings: Rc::new(RefCell::new(settings.unwrap_or_default())),
+            settings: ReadWriteStateHandle::new(settings.unwrap_or_default()),
             rpc: RichPresence::new(),
             current: GameState::Lobby,
             matches_handle,
@@ -114,7 +113,7 @@ impl DiscordService {
     }
 
     fn send_current(&mut self) {
-        let settings = self.settings.borrow();
+        let settings = self.settings.read();
 
         if settings.disable {
             self.rpc.ensure_disconnected();
@@ -127,6 +126,6 @@ impl DiscordService {
     }
 
     pub fn settings_handle(&self) -> ReadWriteStateHandle<DiscordSettings> {
-        ReadWriteStateHandle::over(&self.settings)
+        ReadWriteStateHandle::clone(&self.settings)
     }
 }
