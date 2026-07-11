@@ -2,6 +2,7 @@
 
 mod common;
 mod discord;
+mod hotkey;
 mod rocket_league;
 mod spotify;
 mod ui;

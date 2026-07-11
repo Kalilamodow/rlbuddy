@@ -3,6 +3,7 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
     rc::Rc,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 #[derive(Clone)]
@@ -28,6 +29,12 @@ pub struct ReadWriteStateHandle<T> {
 }
 
 impl<T> ReadWriteStateHandle<T> {
+    pub fn new(state: T) -> Self {
+        Self {
+            state: Rc::new(RefCell::new(state)),
+        }
+    }
+
     pub fn over(state: &Rc<RefCell<T>>) -> Self {
         Self {
             state: Rc::clone(state),
@@ -40,5 +47,43 @@ impl<T> ReadWriteStateHandle<T> {
 
     pub fn write(&self) -> RefMut<'_, T> {
         self.state.borrow_mut()
+    }
+}
+
+#[derive(Clone)]
+pub struct ThreadedReadonlyStateHandle<T> {
+    state: Arc<RwLock<T>>,
+}
+
+impl<T> ThreadedReadonlyStateHandle<T> {
+    pub fn over(readwrite: &ThreadedReadWriteStateHandle<T>) -> Self {
+        Self {
+            state: Arc::clone(&readwrite.state),
+        }
+    }
+
+    pub fn read(&self) -> RwLockReadGuard<'_, T> {
+        self.state.read().unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub struct ThreadedReadWriteStateHandle<T> {
+    state: Arc<RwLock<T>>,
+}
+
+impl<T> ThreadedReadWriteStateHandle<T> {
+    pub fn new(state: T) -> Self {
+        Self {
+            state: Arc::new(RwLock::new(state)),
+        }
+    }
+
+    pub fn read(&self) -> RwLockReadGuard<'_, T> {
+        self.state.read().unwrap()
+    }
+
+    pub fn write(&self) -> RwLockWriteGuard<'_, T> {
+        self.state.write().unwrap()
     }
 }

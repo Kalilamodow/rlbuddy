@@ -1,14 +1,14 @@
 use crate::{
     discord,
+    hotkey::{HotkeyService, HotkeySettings, HotkeySettingsWidget},
     rocket_league::{CurrentMatchWidget, MatchesService, PastMatchesWidget, RLEvent, StatsApi},
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
 };
 
-use super::hotkey::{HotkeySettings, HotkeyWidget};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use std::{collections::HashSet, sync::Arc};
-use std::{sync::mpsc, time::Duration};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
@@ -53,7 +53,6 @@ struct AppData {
 
 pub struct RlBuddyApp {
     prev_hide_pos: Option<egui::Pos2>,
-    overlay_rx: mpsc::Receiver<bool>,
     open_panels: HashSet<Panel>,
 
     stats_api: StatsApi,
@@ -68,13 +67,13 @@ pub struct RlBuddyApp {
     current_match: CurrentMatchWidget,
     past_matches: PastMatchesWidget,
 
-    hotkey_settings: HotkeyWidget,
+    hotkey_service: HotkeyService,
+    hotkey_settings: HotkeySettingsWidget,
 }
 
 impl RlBuddyApp {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         let ctx = cc.egui_ctx.clone();
-        let (overlay_tx, overlay_rx) = mpsc::channel();
 
         let app_data = if let Some(storage) = cc.storage
             && let Some(existing_state) = eframe::get_value::<AppData>(storage, eframe::APP_KEY)
@@ -91,13 +90,9 @@ impl RlBuddyApp {
             app_data.rich_presence_settings,
             matches_service.state_handle(),
         );
-
-        let hotkey_widget =
-            HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
-        hotkey_widget.start_listening();
+        let hotkey_service = HotkeyService::new(app_data.hotkey_settings);
 
         RlBuddyApp {
-            overlay_rx,
             prev_hide_pos: None,
 
             stats_api,
@@ -110,8 +105,10 @@ impl RlBuddyApp {
             past_matches: PastMatchesWidget::new(matches_service.state_handle()),
             matches_service,
 
+            hotkey_settings: HotkeySettingsWidget::new(hotkey_service.settings_handle()),
+            hotkey_service,
+
             open_panels: HashSet::from([Panel::CurrentMatch]),
-            hotkey_settings: hotkey_widget,
             spotify_widget: SpotifyWidget::new(),
         }
     }
@@ -162,7 +159,7 @@ impl RlBuddyApp {
 impl eframe::App for RlBuddyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let data = AppData {
-            hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
+            hotkey_settings: Some(self.hotkey_service.settings_handle().read().clone()),
             rich_presence_settings: Some(self.discord_service.settings_handle().read().clone()),
             spotify_data: Some(self.spotify_service.save()),
         };
@@ -231,7 +228,7 @@ impl eframe::App for RlBuddyApp {
             }
         }
 
-        while let Ok(should_overlay) = self.overlay_rx.try_recv() {
+        if let Some(should_overlay) = self.hotkey_service.update() {
             if should_overlay {
                 self.show(ctx);
             } else {
