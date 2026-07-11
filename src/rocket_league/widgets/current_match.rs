@@ -1,13 +1,14 @@
+use crate::common::ReadonlyStateHandle;
+
 use super::{super::matches::MatchesServiceState, match_renderer::MatchRenderer};
 use eframe::egui;
-use std::{cell::RefCell, rc::Rc};
 
 pub struct CurrentMatchWidget {
-    state: Rc<RefCell<MatchesServiceState>>,
+    state: ReadonlyStateHandle<MatchesServiceState>,
 }
 
 impl CurrentMatchWidget {
-    pub fn new(state: Rc<RefCell<MatchesServiceState>>) -> Self {
+    pub fn new(state: ReadonlyStateHandle<MatchesServiceState>) -> Self {
         CurrentMatchWidget { state }
     }
 }
@@ -15,7 +16,7 @@ impl CurrentMatchWidget {
 impl egui::Widget for &CurrentMatchWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
-            if let Some(current_match) = &self.state.borrow().current_match {
+            if let Some(current_match) = &self.state.read().current_match {
                 match current_match.players.len() {
                     0 => {
                         ui.label("No players");

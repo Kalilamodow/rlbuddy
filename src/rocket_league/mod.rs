@@ -6,7 +6,7 @@ mod names;
 mod skills;
 mod stats_api;
 
-pub use matches::MatchesService;
+pub use matches::{MatchesService, MatchesServiceState};
 pub use names::*;
 pub use skills::*;
 pub use stats_api::*;

@@ -1,7 +1,10 @@
 use super::rpc::{PresenceData, RichPresence};
-use crate::rocket_league::{MatchState, Playlist, RLEvent};
+use crate::{
+    common::ReadonlyStateHandle,
+    rocket_league::{MatchState, MatchesServiceState, Playlist, Team},
+};
 use serde::{Deserialize, Serialize};
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchData {
@@ -76,44 +79,44 @@ pub struct DiscordService {
     settings: Rc<DiscordSettings>,
     rpc: RichPresence,
     current: GameState,
+    matches_handle: ReadonlyStateHandle<MatchesServiceState>,
 }
 
 impl DiscordService {
-    pub fn new(settings: Option<DiscordSettings>) -> Self {
+    pub fn new(
+        settings: Option<DiscordSettings>,
+        matches_handle: ReadonlyStateHandle<MatchesServiceState>,
+    ) -> Self {
         DiscordService {
             settings: Rc::new(settings.unwrap_or_default()),
             rpc: RichPresence::new(),
             current: GameState::Lobby,
+            matches_handle,
         }
     }
 
-    pub fn update(
-        &mut self,
-        stats_api_event: &Arc<Option<RLEvent>>,
-        command: Option<DiscordCommand>,
-    ) -> DiscordServiceState {
-        if let Some(event) = stats_api_event.as_ref() {
-            match event {
-                RLEvent::Update(update) => {
-                    self.current = match update.players.len() {
-                        0 => GameState::Lobby,
-                        1 => GameState::Training,
-                        player_count => GameState::InGame(MatchData {
-                            // TODO: actual scores
-                            team_score: update.score.blue,
-                            opp_score: update.score.orange,
-                            playlist: Playlist::from_player_count(player_count),
-                            arena: update.arena,
-                            state: update.state.clone(),
-                        }),
+    pub fn update(&mut self, command: Option<DiscordCommand>) -> DiscordServiceState {
+        self.current = match &self.matches_handle.read().current_match {
+            Some(current_match) => match current_match.players.len() {
+                0 => GameState::Lobby,
+                1 => GameState::Training,
+                player_count => {
+                    let (our_score, their_score) = match current_match.our_team {
+                        Team::Blue => (current_match.score.blue, current_match.score.orange),
+                        Team::Orange => (current_match.score.orange, current_match.score.blue),
                     };
+
+                    GameState::InGame(MatchData {
+                        team_score: our_score,
+                        opp_score: their_score,
+                        playlist: Playlist::from_player_count(player_count),
+                        arena: current_match.arena.unwrap_or_default(),
+                        state: current_match.state.clone(),
+                    })
                 }
-                RLEvent::MatchLeft => {
-                    self.current = GameState::Lobby;
-                }
-                _ => {}
-            }
-        }
+            },
+            None => GameState::Lobby,
+        };
 
         if let Some(command) = command {
             match command {

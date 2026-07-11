@@ -5,6 +5,8 @@ use std::time::SystemTime;
 
 use eframe::egui;
 
+use crate::common::ReadonlyStateHandle;
+
 use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
 use super::{MatchUpdate, Platform, RLEvent};
 use super::{names::NameAPI, skills::RankAPI};
@@ -33,8 +35,8 @@ impl MatchesService {
         }
     }
 
-    pub fn state_handle(&self) -> Rc<RefCell<MatchesServiceState>> {
-        Rc::clone(&self.state)
+    pub fn state_handle(&self) -> ReadonlyStateHandle<MatchesServiceState> {
+        ReadonlyStateHandle::over(&self.state)
     }
 
     fn update_state(&mut self, mut updated: MatchUpdate) {
@@ -48,6 +50,8 @@ impl MatchesService {
             return;
         };
 
+        current_match.arena = Some(updated.arena);
+        current_match.state = updated.state;
         current_match.max_active_players =
             current_match.max_active_players.max(updated.players.len());
         current_match.score = updated.score;

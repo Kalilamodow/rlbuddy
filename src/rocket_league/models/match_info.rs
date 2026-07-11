@@ -70,6 +70,8 @@ pub struct MatchInfo {
     pub finish: Option<MatchOverInfo>,
     pub started_at: SystemTime,
     pub max_active_players: usize,
+    pub arena: Option<&'static str>,
+    pub state: MatchState,
 }
 
 impl Default for MatchInfo {
@@ -81,6 +83,8 @@ impl Default for MatchInfo {
             finish: None,
             started_at: SystemTime::now(),
             max_active_players: 0,
+            arena: None,
+            state: MatchState::Game,
         }
     }
 }

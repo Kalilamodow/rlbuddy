@@ -85,9 +85,12 @@ impl RlBuddyApp {
         };
 
         let stats_api = StatsApi::new();
-        let spotify_service = SpotifyService::new(app_data.spotify_data);
-        let discord_service = discord::DiscordService::new(app_data.rich_presence_settings);
         let matches_service = MatchesService::new(&ctx);
+        let spotify_service = SpotifyService::new(app_data.spotify_data);
+        let discord_service = discord::DiscordService::new(
+            app_data.rich_presence_settings,
+            matches_service.state_handle(),
+        );
 
         let hotkey_widget =
             HotkeyWidget::new(overlay_tx.clone(), ctx.clone(), app_data.hotkey_settings);
@@ -214,7 +217,7 @@ impl eframe::App for RlBuddyApp {
             .update(&stats_api_latest, self.spotify_widget.get_command());
         let discord_latest = self
             .discord_service
-            .update(&stats_api_latest, self.discord_widget.get_command());
+            .update(self.discord_widget.get_command());
         self.matches_service.update(ctx, &stats_api_latest);
 
         if let Some(event) = stats_api_latest.as_ref() {
