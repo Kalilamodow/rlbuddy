@@ -103,8 +103,8 @@ impl RlBuddyApp {
             stats_api,
             spotify_service,
 
+            discord_widget: discord::DiscordWidget::new(discord_service.settings_handle()),
             discord_service,
-            discord_widget: discord::DiscordWidget::new(),
 
             current_match: CurrentMatchWidget::new(matches_service.state_handle()),
             past_matches: PastMatchesWidget::new(matches_service.state_handle()),
@@ -163,7 +163,7 @@ impl eframe::App for RlBuddyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let data = AppData {
             hotkey_settings: Some(self.hotkey_settings.get_settings().read().unwrap().clone()),
-            rich_presence_settings: Some(self.discord_service.clone_settings()),
+            rich_presence_settings: Some(self.discord_service.settings_handle().read().clone()),
             spotify_data: Some(self.spotify_service.save()),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
@@ -215,10 +215,9 @@ impl eframe::App for RlBuddyApp {
         let spotify_latest = self
             .spotify_service
             .update(&stats_api_latest, self.spotify_widget.get_command());
-        let discord_latest = self
-            .discord_service
-            .update(self.discord_widget.get_command());
         self.matches_service.update(ctx, &stats_api_latest);
+
+        self.discord_service.update();
 
         if let Some(event) = stats_api_latest.as_ref() {
             match event {
@@ -241,7 +240,6 @@ impl eframe::App for RlBuddyApp {
         }
 
         self.spotify_widget.logic(spotify_latest);
-        self.discord_widget.logic(&discord_latest);
 
         ctx.request_repaint_after(Duration::from_millis(10));
     }

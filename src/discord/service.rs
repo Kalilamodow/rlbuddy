@@ -1,10 +1,10 @@
 use super::rpc::{PresenceData, RichPresence};
 use crate::{
-    common::ReadonlyStateHandle,
+    common::{ReadWriteStateHandle, ReadonlyStateHandle},
     rocket_league::{MatchState, MatchesServiceState, Playlist, Team},
 };
 use serde::{Deserialize, Serialize};
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchData {
@@ -67,16 +67,8 @@ pub struct DiscordSettings {
     pub hide_score: bool,
 }
 
-pub struct DiscordServiceState {
-    pub settings: Rc<DiscordSettings>,
-}
-
-pub enum DiscordCommand {
-    UpdateSettings(DiscordSettings),
-}
-
 pub struct DiscordService {
-    settings: Rc<DiscordSettings>,
+    settings: Rc<RefCell<DiscordSettings>>,
     rpc: RichPresence,
     current: GameState,
     matches_handle: ReadonlyStateHandle<MatchesServiceState>,
@@ -88,14 +80,14 @@ impl DiscordService {
         matches_handle: ReadonlyStateHandle<MatchesServiceState>,
     ) -> Self {
         DiscordService {
-            settings: Rc::new(settings.unwrap_or_default()),
+            settings: Rc::new(RefCell::new(settings.unwrap_or_default())),
             rpc: RichPresence::new(),
             current: GameState::Lobby,
             matches_handle,
         }
     }
 
-    pub fn update(&mut self, command: Option<DiscordCommand>) -> DiscordServiceState {
+    pub fn update(&mut self) {
         self.current = match &self.matches_handle.read().current_match {
             Some(current_match) => match current_match.players.len() {
                 0 => GameState::Lobby,
@@ -118,33 +110,23 @@ impl DiscordService {
             None => GameState::Lobby,
         };
 
-        if let Some(command) = command {
-            match command {
-                DiscordCommand::UpdateSettings(new_settings) => {
-                    self.settings = Rc::new(new_settings);
-                }
-            }
-        }
-
         self.send_current();
-
-        DiscordServiceState {
-            settings: Rc::clone(&self.settings),
-        }
     }
 
     fn send_current(&mut self) {
-        if self.settings.disable {
+        let settings = self.settings.borrow();
+
+        if settings.disable {
             self.rpc.ensure_disconnected();
             return;
         }
         self.rpc.ensure_connected();
 
-        let presence = self.current.to_presence(!self.settings.hide_score);
+        let presence = self.current.to_presence(!settings.hide_score);
         self.rpc.send(presence);
     }
 
-    pub fn clone_settings(&self) -> DiscordSettings {
-        self.settings.as_ref().clone()
+    pub fn settings_handle(&self) -> ReadWriteStateHandle<DiscordSettings> {
+        ReadWriteStateHandle::over(&self.settings)
     }
 }
