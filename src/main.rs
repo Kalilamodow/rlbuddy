@@ -1,11 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app;
 mod common;
 mod discord;
 mod hotkey;
 mod rocket_league;
 mod spotify;
-mod ui;
 
 use eframe::egui;
 
@@ -21,7 +21,7 @@ fn main() -> eframe::Result {
         gui_options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(ui::RlBuddyApp::new(cc)))
+            Ok(Box::new(app::RlBuddyApp::new(cc)))
         }),
     )
 }
