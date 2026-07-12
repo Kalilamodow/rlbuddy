@@ -77,7 +77,8 @@ impl MatchesService {
 
         for remaining_player in updated.players {
             current_match.players.push(MatchPlayer {
-                is_local_player: Some(&remaining_player.name) == self.local_player_id.as_ref(),
+                is_local_player: Some(&remaining_player.platform_id)
+                    == self.local_player_id.as_ref(),
                 left: false,
                 uncensored_name: None,
                 skill: None,
