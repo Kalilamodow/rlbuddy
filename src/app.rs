@@ -7,12 +7,11 @@ use crate::{
 
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
-use std::{collections::HashSet, sync::Arc};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
-    CurrentMatch,
     PastMatches,
     HotkeySettings,
     DiscordSettings,
@@ -25,7 +24,6 @@ impl std::fmt::Display for Panel {
             f,
             "{}",
             match self {
-                Panel::CurrentMatch => "Match",
                 Panel::PastMatches => "History",
                 Panel::HotkeySettings => "Keybind",
                 Panel::DiscordSettings => "Discord",
@@ -36,8 +34,7 @@ impl std::fmt::Display for Panel {
 }
 
 // note: this determines order
-const ALL_PANELS: [Panel; 5] = [
-    Panel::CurrentMatch,
+const OPENABLE_PANELS: [Panel; 4] = [
     Panel::HotkeySettings,
     Panel::DiscordSettings,
     Panel::Spotify,
@@ -53,7 +50,7 @@ struct AppData {
 
 pub struct RlBuddyApp {
     prev_hide_pos: Option<egui::Pos2>,
-    open_panels: HashSet<Panel>,
+    open_panels: Vec<Panel>,
 
     stats_api: StatsApi,
 
@@ -108,7 +105,7 @@ impl RlBuddyApp {
             hotkey_settings: HotkeySettingsWidget::new(hotkey_service.settings_handle()),
             hotkey_service,
 
-            open_panels: HashSet::from([Panel::CurrentMatch]),
+            open_panels: Vec::new(),
             spotify_widget: SpotifyWidget::new(),
         }
     }
@@ -139,21 +136,6 @@ impl RlBuddyApp {
             egui::WindowLevel::Normal,
         ));
     }
-
-    fn panel_add_button(&mut self, ui: &mut egui::Ui, text: &str, panel: Panel) {
-        if ui
-            .add_enabled(!self.open_panels.contains(&panel), egui::Button::new(text))
-            .clicked()
-        {
-            self.open_panels.insert(panel);
-        }
-    }
-
-    fn panel_remove_button(&mut self, ui: &mut egui::Ui, text: &str, panel: Panel) {
-        if ui.button(text).clicked() {
-            self.open_panels.remove(&panel);
-        }
-    }
 }
 
 impl eframe::App for RlBuddyApp {
@@ -168,39 +150,62 @@ impl eframe::App for RlBuddyApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
-            ui.horizontal(|ui| {
-                for panel in ALL_PANELS {
-                    self.panel_add_button(ui, &panel.to_string(), panel);
-                }
-            });
+            egui::ComboBox::from_label("")
+                .selected_text("Widgets")
+                .show_ui(ui, |ui| {
+                    for panel in OPENABLE_PANELS {
+                        let open = self.open_panels.contains(&panel);
+
+                        if ui.selectable_label(open, &panel.to_string()).clicked() {
+                            if open {
+                                self.open_panels.retain(|p| p != &panel);
+                            } else {
+                                self.open_panels.push(panel);
+                            }
+                        }
+                    }
+                });
         });
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    if self.open_panels.is_empty() {
-                        ui.label("No panels open");
-                        return;
-                    }
+                    ui.add(&self.current_match);
 
-                    let mut is_first = true;
+                    let mut to_close: Option<Panel> = None;
+                    for panel in &self.open_panels {
+                        ui.add_space(4.0);
 
-                    for panel in ALL_PANELS {
-                        if self.open_panels.contains(&panel) {
-                            if !is_first {
-                                ui.separator();
-                            }
-                            is_first = false;
+                        let frame =
+                            egui::Frame::group(ui.style()).fill(ui.style().visuals.faint_bg_color);
 
-                            self.panel_remove_button(ui, &panel.to_string(), panel);
+                        frame.show(ui, |ui| {
+                            ui.columns_const(|[c1, c2]| {
+                                c1.label(egui::RichText::new(panel.to_string()).strong());
+
+                                c2.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Min),
+                                    |c2| {
+                                        if c2.small_button("close").clicked() {
+                                            to_close = Some(*panel);
+                                        }
+                                    },
+                                );
+                            });
+
+                            ui.separator();
+
                             match panel {
-                                Panel::CurrentMatch => ui.add(&self.current_match),
                                 Panel::HotkeySettings => ui.add(&self.hotkey_settings),
                                 Panel::DiscordSettings => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
                                 Panel::PastMatches => ui.add(&self.past_matches),
                             };
-                        }
+                        });
+                    }
+
+                    if let Some(to_close) = to_close {
+                        self.open_panels.retain(|p| p != &to_close);
                     }
                 })
             });
