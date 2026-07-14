@@ -172,8 +172,10 @@ impl eframe::App for RlBuddyApp {
                 ui.vertical_centered_justified(|ui| {
                     ui.add(&self.current_match);
 
+                    let mut to_swap: Option<(usize, usize)> = None; // index, move to
                     let mut to_close: Option<Panel> = None;
-                    for panel in &self.open_panels {
+
+                    for (index, panel) in self.open_panels.iter().enumerate() {
                         ui.add_space(4.0);
 
                         let frame =
@@ -186,9 +188,24 @@ impl eframe::App for RlBuddyApp {
                                 c2.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Min),
                                     |c2| {
-                                        if c2.small_button("close").clicked() {
+                                        if c2.small_button("X").clicked() {
                                             to_close = Some(*panel);
                                         }
+
+                                        c2.add_enabled_ui(
+                                            index != self.open_panels.len() - 1,
+                                            |c2| {
+                                                if c2.small_button("\\/").clicked() {
+                                                    to_swap = Some((index, index + 1));
+                                                }
+                                            },
+                                        );
+
+                                        c2.add_enabled_ui(index != 0, |c2| {
+                                            if c2.small_button("/\\").clicked() {
+                                                to_swap = Some((index, index - 1));
+                                            }
+                                        });
                                     },
                                 );
                             });
@@ -206,6 +223,9 @@ impl eframe::App for RlBuddyApp {
 
                     if let Some(to_close) = to_close {
                         self.open_panels.retain(|p| p != &to_close);
+                    }
+                    if let Some(to_shift) = to_swap {
+                        self.open_panels.swap(to_shift.0, to_shift.1);
                     }
                 })
             });
