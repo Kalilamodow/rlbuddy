@@ -101,7 +101,10 @@ impl RlBuddyApp {
             stats_api,
             spotify_service,
 
-            discord_widget: discord::DiscordWidget::new(discord_service.settings_handle()),
+            discord_widget: discord::DiscordWidget::new(
+                discord_service.settings_handle(),
+                discord_service.state_handle(),
+            ),
             discord_service,
 
             current_match: CurrentMatchWidget::new(matches_service.state_handle()),

@@ -1,4 +1,4 @@
-use super::rpc::{PresenceData, RichPresence};
+use super::rpc::{PresenceData, RichPresenceController};
 use crate::{
     common::{ReadWriteStateHandle, ReadonlyStateHandle},
     rocket_league::{MatchState, MatchesServiceState, Playlist, Team},
@@ -66,9 +66,16 @@ pub struct DiscordSettings {
     pub hide_score: bool,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct DiscordServiceState {
+    pub connected: bool,
+    pub busy: bool,
+}
+
 pub struct DiscordService {
+    state: ReadWriteStateHandle<DiscordServiceState>,
     settings: ReadWriteStateHandle<DiscordSettings>,
-    rpc: RichPresence,
+    controller: RichPresenceController,
     current: GameState,
     matches_handle: ReadonlyStateHandle<MatchesServiceState>,
 }
@@ -79,8 +86,9 @@ impl DiscordService {
         matches_handle: ReadonlyStateHandle<MatchesServiceState>,
     ) -> Self {
         DiscordService {
+            state: ReadWriteStateHandle::new(DiscordServiceState::default()),
             settings: ReadWriteStateHandle::new(settings.unwrap_or_default()),
-            rpc: RichPresence::new(),
+            controller: RichPresenceController::new(),
             current: GameState::Lobby,
             matches_handle,
         }
@@ -110,19 +118,30 @@ impl DiscordService {
         };
 
         self.send_current();
+        self.update_state();
     }
 
     fn send_current(&mut self) {
         let settings = self.settings.read();
 
         if settings.disable {
-            self.rpc.ensure_disconnected();
+            self.controller.ensure_disconnected();
             return;
         }
-        self.rpc.ensure_connected();
+        self.controller.ensure_connected();
 
         let presence = self.current.to_presence(!settings.hide_score);
-        self.rpc.send(presence);
+        self.controller.set_presence(presence);
+    }
+
+    fn update_state(&self) {
+        let mut state = self.state.write();
+        state.connected = self.controller.is_connected();
+        state.busy = self.controller.is_busy();
+    }
+
+    pub fn state_handle(&self) -> ReadonlyStateHandle<DiscordServiceState> {
+        ReadonlyStateHandle::over(&self.state)
     }
 
     pub fn settings_handle(&self) -> ReadWriteStateHandle<DiscordSettings> {
