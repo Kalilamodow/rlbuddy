@@ -1,8 +1,9 @@
 use crate::{
     auto_setup::AutoSetupWidget,
     discord,
-    hotkey::{HotkeyService, HotkeySettings, HotkeySettingsWidget},
+    hotkey::{HotkeyService, HotkeySettings},
     rocket_league::{CurrentMatchWidget, MatchesService, PastMatchesWidget, RLEvent, StatsApi},
+    settings::SettingsWidget,
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
 };
 
@@ -14,10 +15,10 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
     PastMatches,
-    HotkeySettings,
-    DiscordSettings,
+    Discord,
     Spotify,
     AutoSetup,
+    Settings,
 }
 
 impl std::fmt::Display for Panel {
@@ -27,10 +28,10 @@ impl std::fmt::Display for Panel {
             "{}",
             match self {
                 Panel::PastMatches => "History",
-                Panel::HotkeySettings => "Keybind",
-                Panel::DiscordSettings => "Discord",
+                Panel::Discord => "Discord",
                 Panel::Spotify => "Spotify",
                 Panel::AutoSetup => "Stats API Setup",
+                Panel::Settings => "Settings",
             }
         )
     }
@@ -38,11 +39,11 @@ impl std::fmt::Display for Panel {
 
 // note: this determines order
 const OPENABLE_PANELS: [Panel; 5] = [
-    Panel::HotkeySettings,
-    Panel::DiscordSettings,
+    Panel::Discord,
     Panel::Spotify,
     Panel::PastMatches,
     Panel::AutoSetup,
+    Panel::Settings,
 ];
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -69,9 +70,8 @@ pub struct RlBuddyApp {
     past_matches: PastMatchesWidget,
 
     hotkey_service: HotkeyService,
-    hotkey_settings: HotkeySettingsWidget,
-
     auto_setup_widget: AutoSetupWidget,
+    settings_widget: SettingsWidget,
 }
 
 impl RlBuddyApp {
@@ -111,7 +111,7 @@ impl RlBuddyApp {
             past_matches: PastMatchesWidget::new(matches_service.state_handle()),
             matches_service,
 
-            hotkey_settings: HotkeySettingsWidget::new(hotkey_service.settings_handle()),
+            settings_widget: SettingsWidget::new(&hotkey_service),
             hotkey_service,
 
             open_panels: Vec::new(),
@@ -224,11 +224,11 @@ impl eframe::App for RlBuddyApp {
                             ui.separator();
 
                             match panel {
-                                Panel::HotkeySettings => ui.add(&self.hotkey_settings),
-                                Panel::DiscordSettings => ui.add(&mut self.discord_widget),
+                                Panel::Discord => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
                                 Panel::PastMatches => ui.add(&self.past_matches),
                                 Panel::AutoSetup => ui.add(&mut self.auto_setup_widget),
+                                Panel::Settings => ui.add(&mut self.settings_widget),
                             };
                         });
                     }

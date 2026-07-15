@@ -6,6 +6,7 @@ mod common;
 mod discord;
 mod hotkey;
 mod rocket_league;
+mod settings;
 mod spotify;
 
 use eframe::egui;
