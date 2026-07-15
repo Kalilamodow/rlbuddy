@@ -167,7 +167,7 @@ impl eframe::App for RlBuddyApp {
                     for panel in OPENABLE_PANELS {
                         let open = self.open_panels.contains(&panel);
 
-                        if ui.selectable_label(open, &panel.to_string()).clicked() {
+                        if ui.selectable_label(open, panel.to_string()).clicked() {
                             if open {
                                 self.open_panels.retain(|p| p != &panel);
                             } else {
