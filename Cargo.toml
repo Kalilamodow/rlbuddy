@@ -9,6 +9,7 @@ discord-rich-presence = "1.1.0"
 num_enum = "0.7.6"
 rand = "0.10.2"
 rdev = "0.5.3"
+rfd = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 sha2 = "0.11.0"

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod auto_setup;
 mod common;
 mod discord;
 mod hotkey;
