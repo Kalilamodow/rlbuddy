@@ -9,8 +9,8 @@ use crate::{
 
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
@@ -46,14 +46,37 @@ const OPENABLE_PANELS: [Panel; 5] = [
     Panel::Settings,
 ];
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+fn visuals_with_transparency(visuals: &mut egui::Visuals, transparency: u8) {
+    visuals.panel_fill = egui::Color32::from_rgba_unmultiplied(
+        visuals.panel_fill.r(),
+        visuals.panel_fill.g(),
+        visuals.panel_fill.b(),
+        255 - transparency,
+    );
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct AppData {
+    transparency: u8,
     hotkey_settings: Option<HotkeySettings>,
     rich_presence_settings: Option<discord::DiscordSettings>,
     spotify_data: Option<SpotifySavedata>,
 }
 
+impl Default for AppData {
+    fn default() -> Self {
+        AppData {
+            transparency: 25,
+            hotkey_settings: None,
+            rich_presence_settings: None,
+            spotify_data: None,
+        }
+    }
+}
+
 pub struct RlBuddyApp {
+    current_transparency: Rc<RefCell<u8>>,
+
     prev_hide_pos: Option<egui::Pos2>,
     open_panels: Vec<Panel>,
 
@@ -95,7 +118,11 @@ impl RlBuddyApp {
         );
         let hotkey_service = HotkeyService::new(app_data.hotkey_settings);
 
+        let current_transparency = Rc::new(RefCell::new(app_data.transparency));
         RlBuddyApp {
+            settings_widget: SettingsWidget::new(&hotkey_service, Rc::clone(&current_transparency)),
+
+            current_transparency,
             prev_hide_pos: None,
 
             stats_api,
@@ -111,7 +138,6 @@ impl RlBuddyApp {
             past_matches: PastMatchesWidget::new(matches_service.state_handle()),
             matches_service,
 
-            settings_widget: SettingsWidget::new(&hotkey_service),
             hotkey_service,
 
             open_panels: Vec::new(),
@@ -152,6 +178,7 @@ impl RlBuddyApp {
 impl eframe::App for RlBuddyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let data = AppData {
+            transparency: *self.current_transparency.borrow(),
             hotkey_settings: Some(self.hotkey_service.settings_handle().read().clone()),
             rich_presence_settings: Some(self.discord_service.settings_handle().read().clone()),
             spotify_data: Some(self.spotify_service.save()),
@@ -160,6 +187,8 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        visuals_with_transparency(ui.visuals_mut(), *self.current_transparency.borrow());
+
         egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
             egui::ComboBox::from_label("")
                 .selected_text("Widgets")
@@ -276,5 +305,9 @@ impl eframe::App for RlBuddyApp {
         self.spotify_widget.logic(spotify_latest);
 
         ctx.request_repaint_after(Duration::from_millis(10));
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        egui::Rgba::TRANSPARENT.to_array()
     }
 }
