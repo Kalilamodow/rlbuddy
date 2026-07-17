@@ -14,6 +14,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 enum Panel {
+    CurrentMatch,
     PastMatches,
     Discord,
     Spotify,
@@ -27,6 +28,7 @@ impl std::fmt::Display for Panel {
             f,
             "{}",
             match self {
+                Panel::CurrentMatch => "Lobby",
                 Panel::PastMatches => "History",
                 Panel::Discord => "Discord",
                 Panel::Spotify => "Spotify",
@@ -38,7 +40,8 @@ impl std::fmt::Display for Panel {
 }
 
 // note: this determines order
-const OPENABLE_PANELS: [Panel; 5] = [
+const OPENABLE_PANELS: [Panel; 6] = [
+    Panel::CurrentMatch,
     Panel::Discord,
     Panel::Spotify,
     Panel::PastMatches,
@@ -140,7 +143,7 @@ impl RlBuddyApp {
 
             hotkey_service,
 
-            open_panels: Vec::new(),
+            open_panels: vec![Panel::CurrentMatch],
             spotify_widget: SpotifyWidget::new(),
 
             auto_setup_widget: AutoSetupWidget::new(),
@@ -210,14 +213,10 @@ impl eframe::App for RlBuddyApp {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    ui.add(&self.current_match);
-
                     let mut to_swap: Option<(usize, usize)> = None; // index, move to
                     let mut to_close: Option<Panel> = None;
 
                     for (index, panel) in self.open_panels.iter().enumerate() {
-                        ui.add_space(4.0);
-
                         let frame =
                             egui::Frame::group(ui.style()).fill(ui.style().visuals.faint_bg_color);
 
@@ -253,6 +252,7 @@ impl eframe::App for RlBuddyApp {
                             ui.separator();
 
                             match panel {
+                                Panel::CurrentMatch => ui.add(&self.current_match),
                                 Panel::Discord => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
                                 Panel::PastMatches => ui.add(&self.past_matches),
@@ -260,6 +260,8 @@ impl eframe::App for RlBuddyApp {
                                 Panel::Settings => ui.add(&mut self.settings_widget),
                             };
                         });
+
+                        ui.add_space(4.0);
                     }
 
                     if let Some(to_close) = to_close {
