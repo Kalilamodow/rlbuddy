@@ -103,6 +103,7 @@ pub struct RlBuddyApp {
 impl RlBuddyApp {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         let ctx = cc.egui_ctx.clone();
+        egui_system_fonts::set_auto(&ctx, egui_system_fonts::FontStyle::Sans);
 
         let app_data = if let Some(storage) = cc.storage
             && let Some(existing_state) = eframe::get_value::<AppData>(storage, eframe::APP_KEY)

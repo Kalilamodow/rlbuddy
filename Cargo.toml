@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 base64 = "0.22.1"
 discord-rich-presence = "1.1.0"
+egui-system-fonts = "0.34.2"
 num_enum = "0.7.6"
 rand = "0.10.2"
 rdev = "0.5.3"
@@ -20,7 +21,7 @@ webbrowser = "1.2.1"
 [dependencies.eframe]
 version = "0.34.3"
 default-features = false
-features = ["default_fonts", "glow", "persistence"]
+features = ["glow", "persistence"]
 
 [dependencies.egui_extras]
 version = "0.34.3"
