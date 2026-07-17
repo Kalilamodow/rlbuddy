@@ -129,13 +129,18 @@ impl RlBuddyApp {
             prev_hide_pos: None,
 
             stats_api,
-            spotify_service,
 
             discord_widget: discord::DiscordWidget::new(
                 discord_service.settings_handle(),
                 discord_service.state_handle(),
             ),
             discord_service,
+
+            spotify_widget: SpotifyWidget::new(
+                spotify_service.state_handle(),
+                spotify_service.settings_handle(),
+            ),
+            spotify_service,
 
             current_match: CurrentMatchWidget::new(matches_service.state_handle()),
             past_matches: PastMatchesWidget::new(matches_service.state_handle()),
@@ -144,7 +149,6 @@ impl RlBuddyApp {
             hotkey_service,
 
             open_panels: vec![Panel::CurrentMatch],
-            spotify_widget: SpotifyWidget::new(),
 
             auto_setup_widget: AutoSetupWidget::new(),
         }
@@ -277,8 +281,7 @@ impl eframe::App for RlBuddyApp {
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let stats_api_latest = Arc::new(self.stats_api.update());
-        let spotify_latest = self
-            .spotify_service
+        self.spotify_service
             .update(&stats_api_latest, self.spotify_widget.get_command());
         self.matches_service.update(ctx, &stats_api_latest);
 
@@ -303,8 +306,6 @@ impl eframe::App for RlBuddyApp {
                 self.hide(ctx);
             }
         }
-
-        self.spotify_widget.logic(spotify_latest);
 
         ctx.request_repaint_after(Duration::from_millis(10));
     }

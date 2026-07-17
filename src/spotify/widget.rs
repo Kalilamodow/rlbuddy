@@ -1,34 +1,24 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::SystemTime,
+use super::service::{
+    SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings,
 };
-
+use crate::common::{ReadWriteStateHandle, ThreadedReadonlyStateHandle};
 use eframe::egui;
+use std::time::SystemTime;
 
-use super::{
-    client::PlaybackState,
-    service::{SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings},
-};
-
-#[derive(Debug)]
-struct WidgetCache {
-    currently_playing: Arc<Mutex<Option<PlaybackState>>>,
-    last_updated_at: SystemTime,
-    logged_in: bool,
-}
-
-#[derive(Debug)]
 pub struct SpotifyWidget {
-    cache: Option<WidgetCache>,
-    local_settings: SpotifySettings, // gets this from service state
+    state: ThreadedReadonlyStateHandle<SpotifyServiceState>,
+    settings: ReadWriteStateHandle<SpotifySettings>,
     send_command: Option<SpotifyCommand>,
 }
 
 impl SpotifyWidget {
-    pub fn new() -> SpotifyWidget {
+    pub fn new(
+        state_handle: ThreadedReadonlyStateHandle<SpotifyServiceState>,
+        settings_handle: ReadWriteStateHandle<SpotifySettings>,
+    ) -> SpotifyWidget {
         SpotifyWidget {
-            cache: None,
-            local_settings: SpotifySettings::default(),
+            state: state_handle,
+            settings: settings_handle,
             send_command: None,
         }
     }
@@ -37,23 +27,11 @@ impl SpotifyWidget {
         self.send_command.take()
     }
 
-    pub fn logic(&mut self, state: SpotifyServiceState) {
-        self.cache = Some(WidgetCache {
-            currently_playing: state.playback_state,
-            last_updated_at: state.last_updated_at,
-            logged_in: state.logged_in,
-        });
-        self.local_settings = state.settings.as_ref().clone();
-    }
-
     fn render_time_till_next_poll(&self, ui: &mut egui::Ui) {
-        let Some(cache) = &self.cache else {
-            ui.spinner();
-            return;
-        };
+        let state = self.state.read();
 
         let seconds_since = SystemTime::now()
-            .duration_since(cache.last_updated_at)
+            .duration_since(state.last_updated_at)
             .unwrap();
 
         let until_secs = SPOTIFY_REFRESH_INTERVAL
@@ -75,18 +53,14 @@ impl SpotifyWidget {
             let mut has_song = true;
 
             ui.vertical(|ui| {
-                let Some(cache) = &self.cache else {
-                    return;
-                };
-
-                let currently_playing = cache.currently_playing.lock().unwrap();
-                let Some(state) = currently_playing.as_ref() else {
+                let state = self.state.read();
+                let Some(currently_playing) = state.playback_state.as_ref() else {
                     has_song = false;
                     ui.label("No track currently playing");
                     return;
                 };
 
-                let track = &state.track;
+                let track = &currently_playing.track;
                 ui.small("Now playing:");
                 ui.label(egui::RichText::new(&track.name).size(16.0));
                 ui.label(&track.artists[0].name);
@@ -106,10 +80,6 @@ impl SpotifyWidget {
         });
     }
 
-    fn send_settings_update(&mut self) {
-        self.send(SpotifyCommand::UpdateSettings(self.local_settings.clone()));
-    }
-
     fn send(&mut self, cmd: SpotifyCommand) {
         self.send_command = Some(cmd);
     }
@@ -118,30 +88,24 @@ impl SpotifyWidget {
 impl egui::Widget for &mut SpotifyWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
-            let Some(cache) = &self.cache else {
-                ui.spinner();
-                return;
-            };
+            {
+                let state = self.state.read();
 
-            if !cache.logged_in {
-                if ui.button("Link Spotify").clicked() {
-                    self.send(SpotifyCommand::Login);
+                if !state.logged_in {
+                    drop(state);
+
+                    if ui.button("Link Spotify").clicked() {
+                        self.send(SpotifyCommand::Login);
+                    }
+                    return;
                 }
-                return;
             }
 
             self.render_currently_playing(ui);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.local_settings.pause_during_replay,
-                        "Pause during replay",
-                    )
-                    .clicked()
-                {
-                    self.send_settings_update();
-                }
+                let mut settings = self.settings.write();
+                ui.checkbox(&mut settings.pause_during_replay, "Pause during replay");
             });
 
             if ui.button("Unlink").clicked() {

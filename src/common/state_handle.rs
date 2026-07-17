@@ -61,7 +61,7 @@ impl<T> ThreadedReadonlyStateHandle<T> {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct ThreadedReadWriteStateHandle<T> {
     state: Arc<RwLock<T>>,
 }
@@ -79,5 +79,13 @@ impl<T> ThreadedReadWriteStateHandle<T> {
 
     pub fn write(&self) -> RwLockWriteGuard<'_, T> {
         self.state.write().unwrap()
+    }
+}
+
+impl<T> Clone for ThreadedReadWriteStateHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            state: Arc::clone(&self.state),
+        }
     }
 }
