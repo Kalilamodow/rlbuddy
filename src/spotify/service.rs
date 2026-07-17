@@ -26,7 +26,7 @@ pub enum SpotifyCommand {
     Play,
     Pause,
     Skip,
-    Login,
+    Login(String), // client id
     Logout,
 }
 
@@ -64,7 +64,7 @@ impl SpotifyService {
 
     pub fn update(&mut self, event: &Arc<Option<RLEvent>>, command: Option<SpotifyCommand>) {
         if let Some(command) = command {
-            self.handle_command(&command);
+            self.handle_command(command);
         }
 
         {
@@ -74,8 +74,8 @@ impl SpotifyService {
             {
                 drop(settings);
                 match event {
-                    RLEvent::ReplayStart => self.handle_command(&SpotifyCommand::Pause),
-                    RLEvent::ReplayDone => self.handle_command(&SpotifyCommand::Play),
+                    RLEvent::ReplayStart => self.handle_command(SpotifyCommand::Pause),
+                    RLEvent::ReplayDone => self.handle_command(SpotifyCommand::Play),
                     _ => {}
                 }
             }
@@ -97,9 +97,9 @@ impl SpotifyService {
         }
     }
 
-    pub fn handle_command(&mut self, command: &SpotifyCommand) {
+    pub fn handle_command(&mut self, command: SpotifyCommand) {
         match command {
-            SpotifyCommand::Login => {
+            SpotifyCommand::Login(client_id) => {
                 if self.client.read().unwrap().is_some() {
                     return;
                 }
@@ -107,7 +107,7 @@ impl SpotifyService {
                 let client_ref = Arc::clone(&self.client);
                 let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
                 thread::spawn(move || {
-                    let new_client = Client::from_scratch();
+                    let new_client = Client::from_scratch(client_id);
                     let mut old_client = client_ref.write().unwrap();
                     *old_client = Some(new_client);
                     state_ref.write().logged_in = true;

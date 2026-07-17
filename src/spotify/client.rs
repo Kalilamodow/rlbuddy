@@ -5,7 +5,6 @@ use sha2::{Digest as _, Sha256};
 use std::io::{Read as _, Write};
 use std::net::TcpListener;
 
-const CLIENT_ID: &str = "7cad881bada7434790b3fa50925c6b69";
 const REDIRECT_URL: &str = "http://127.0.0.1:7742/";
 
 fn sha256(input: &str) -> Vec<u8> {
@@ -19,6 +18,7 @@ fn generate_code_verifier() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedCredentials {
     refresh_token: String,
+    client_id: String,
 }
 
 #[derive(Deserialize)]
@@ -26,8 +26,15 @@ pub struct RefreshFlowResponse {
     access_token: String,
 }
 
+#[derive(Deserialize)]
+pub struct AuthFlowResponse {
+    access_token: String,
+    refresh_token: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Client {
+    client_id: String,
     access_token: String,
     refresh_token: String,
 }
@@ -50,10 +57,11 @@ impl Client {
     pub fn save(&self) -> SavedCredentials {
         SavedCredentials {
             refresh_token: self.refresh_token.clone(),
+            client_id: self.client_id.clone(),
         }
     }
 
-    pub fn from_scratch() -> Client {
+    pub fn from_scratch(client_id: String) -> Client {
         let verifier = generate_code_verifier();
         let hashed = sha256(&verifier);
         let code_challenge = URL_SAFE_NO_PAD.encode(hashed);
@@ -61,7 +69,7 @@ impl Client {
         let url = format!(
             "https://accounts.spotify.com/authorize\
             ?response_type=code\
-            &client_id={CLIENT_ID}\
+            &client_id={client_id}\
             &scope={}\
             &code_challenge_method=S256\
             &code_challenge={code_challenge}\
@@ -107,25 +115,31 @@ impl Client {
             .into_owned();
 
         let form = [
-            ("client_id", CLIENT_ID),
             ("grant_type", "authorization_code"),
+            ("client_id", &client_id),
             ("code", &authorization_code),
             ("redirect_uri", REDIRECT_URL),
             ("code_verifier", &verifier),
         ];
 
-        ureq::post("https://accounts.spotify.com/api/token")
+        let resp = ureq::post("https://accounts.spotify.com/api/token")
             .send_form(form)
             .unwrap()
             .body_mut()
-            .read_json::<Client>()
-            .unwrap()
+            .read_json::<AuthFlowResponse>()
+            .unwrap();
+
+        Client {
+            client_id,
+            access_token: resp.access_token,
+            refresh_token: resp.refresh_token,
+        }
     }
 
     pub fn from_saved(credentials: SavedCredentials) -> Client {
         let form = [
-            ("client_id", CLIENT_ID),
             ("grant_type", "refresh_token"),
+            ("client_id", &credentials.client_id),
             ("refresh_token", &credentials.refresh_token),
         ];
 
@@ -139,6 +153,7 @@ impl Client {
         Client {
             access_token: response.access_token,
             refresh_token: credentials.refresh_token,
+            client_id: credentials.client_id,
         }
     }
 
