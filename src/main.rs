@@ -6,9 +6,9 @@ mod common;
 mod discord;
 mod hotkey;
 mod matches;
-mod rocket_league;
 mod settings;
 mod spotify;
+mod stats_api;
 
 use eframe::egui;
 

@@ -2,7 +2,7 @@ use super::rpc::{PresenceData, RichPresenceController};
 use crate::{
     common::{ReadWriteStateHandle, ReadonlyStateHandle},
     matches::MatchesServiceState,
-    rocket_league::{MatchState, Playlist, Team},
+    stats_api::{MatchState, Playlist, Team},
 };
 use serde::{Deserialize, Serialize};
 

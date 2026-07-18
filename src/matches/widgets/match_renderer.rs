@@ -1,5 +1,5 @@
 use crate::matches::models::{MatchInfo, MatchPlayer};
-use crate::rocket_league::{Platform, Playlist, Rank, Team, TeamScores};
+use crate::stats_api::{Platform, Playlist, Rank, Team, TeamScores};
 
 use super::super::apis::EventRanks;
 

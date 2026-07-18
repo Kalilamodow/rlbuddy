@@ -1,7 +1,7 @@
 use super::client::{Client, PlaybackState, SavedCredentials};
 use crate::{
     common::{ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle},
-    rocket_league::RLEvent,
+    stats_api::RLEvent,
 };
 use serde::{Deserialize, Serialize};
 use std::{

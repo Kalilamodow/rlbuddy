@@ -3,9 +3,9 @@ use crate::{
     discord,
     hotkey::{HotkeyService, HotkeySettings},
     matches::{CurrentMatchWidget, MatchesService, PastMatchesWidget},
-    rocket_league::{RLEvent, StatsApi},
     settings::SettingsWidget,
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
+    stats_api::{RLEvent, StatsApi},
 };
 
 use eframe::egui;

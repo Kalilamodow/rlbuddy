@@ -5,7 +5,7 @@ use eframe::egui;
 
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
 use crate::matches::models::{MatchInfo, MatchOverInfo, MatchPlayer};
-use crate::rocket_league::{MatchUpdate, Platform, RLEvent, Team};
+use crate::stats_api::{MatchUpdate, Platform, RLEvent, Team};
 
 use super::apis::{NameAPI, RankAPI};
 
