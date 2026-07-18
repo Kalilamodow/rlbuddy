@@ -149,13 +149,13 @@ impl SpotifyService {
                 {
                     let mut state = state_ref.write();
                     state.is_updating = true;
+                    state.last_updated_at = SystemTime::now();
                 }
 
                 thread::sleep(Duration::from_secs(1));
                 let new_playback_state = client.get_playback_state();
                 let mut state = state_ref.write();
                 state.playback_state = new_playback_state;
-                state.last_updated_at = SystemTime::now();
                 state.is_updating = false;
             }
         });
