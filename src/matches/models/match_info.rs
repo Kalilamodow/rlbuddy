@@ -2,7 +2,8 @@ use std::{sync::Arc, time::SystemTime};
 
 use crate::{
     matches::apis::{EventRanks, NameAPI},
-    stats_api::{MatchState, Platform, PlayerData, Team, TeamScores},
+    rocket_league::{Platform, Team},
+    stats_api::{MatchState, PlayerData, TeamScores},
 };
 
 #[derive(Debug, Clone)]

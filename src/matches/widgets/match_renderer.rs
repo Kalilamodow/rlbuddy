@@ -1,7 +1,12 @@
-use crate::matches::models::{MatchInfo, MatchPlayer};
-use crate::stats_api::{Platform, Playlist, Rank, Team, TeamScores};
+use crate::{
+    rocket_league::{Platform, Playlist, Rank, Team},
+    stats_api::TeamScores,
+};
 
-use super::super::apis::EventRanks;
+use super::super::{
+    apis::EventRanks,
+    models::{MatchInfo, MatchPlayer},
+};
 
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;

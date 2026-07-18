@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use crate::rocket_league::{Platform, Team, asset_to_arena};
+
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
     #[serde(rename = "Event")]
@@ -86,51 +88,6 @@ impl TeamScores {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Platform {
-    Epic,
-    Steam,
-    Xbox,
-    PlayStation,
-    Switch,
-    Bot,
-}
-
-#[derive(Debug)]
-pub struct UnknownPlatform;
-
-impl FromStr for Platform {
-    type Err = UnknownPlatform;
-    fn from_str(s: &str) -> Result<Platform, Self::Err> {
-        match s {
-            "Epic" => Ok(Platform::Epic),
-            "Steam" => Ok(Platform::Steam),
-            "XboxOne" => Ok(Platform::Xbox),
-            "PS4" => Ok(Platform::PlayStation),
-            "Switch" => Ok(Platform::Switch),
-            "Unknown" => Ok(Platform::Bot),
-            _ => Err(UnknownPlatform),
-        }
-    }
-}
-
-impl fmt::Display for Platform {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Platform::Epic => "Epic",
-                Platform::Steam => "Steam",
-                Platform::PlayStation => "PlayStation",
-                Platform::Xbox => "Xbox",
-                Platform::Switch => "Switch",
-                Platform::Bot => "Bot",
-            }
-        )
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchState {
     Game,
@@ -145,36 +102,6 @@ impl MatchState {
             MatchState::Replay => "Watching replay",
             MatchState::Overtime => "In overtime",
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum Team {
-    Blue,
-    Orange,
-}
-
-impl From<u8> for Team {
-    fn from(value: u8) -> Self {
-        match value {
-            0 => Team::Blue,
-            1 => Team::Orange,
-            _ => unreachable!("invalid team {}", value),
-        }
-    }
-}
-
-impl fmt::Display for Team {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Team::Blue => "Blue",
-                Team::Orange => "Orange",
-            }
-        )
     }
 }
 
@@ -364,7 +291,7 @@ impl StatsApi {
                         MatchState::Game
                     },
                     score: data.game.scores(),
-                    arena: super::asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
+                    arena: asset_to_arena(&data.game.arena).unwrap_or("Unknown"),
                     players: data
                         .players
                         .into_iter()

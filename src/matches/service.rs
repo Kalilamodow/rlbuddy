@@ -4,10 +4,11 @@ use std::time::SystemTime;
 use eframe::egui;
 
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
-use crate::matches::models::{MatchInfo, MatchOverInfo, MatchPlayer};
-use crate::stats_api::{MatchUpdate, Platform, RLEvent, Team};
+use crate::rocket_league::{Platform, Team};
+use crate::stats_api::{MatchUpdate, RLEvent};
 
 use super::apis::{NameAPI, RankAPI};
+use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
 
 #[derive(Debug, Default)]
 pub struct MatchesServiceState {
