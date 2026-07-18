@@ -5,10 +5,10 @@ use std::{
 };
 
 use eframe::egui;
-use num_enum::TryFromPrimitive;
+use num_enum::TryFromPrimitive as _;
 use serde::Deserialize;
 
-use super::{Division, Playlist, Rank};
+use crate::rocket_league::{Division, Playlist, Rank};
 
 const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 

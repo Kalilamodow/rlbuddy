@@ -1,23 +1,9 @@
 use std::{sync::Arc, time::SystemTime};
 
-use super::super::{EventRanks, NameAPI, Platform, PlayerData, Team, TeamScores};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MatchState {
-    Game,
-    Replay,
-    Overtime,
-}
-
-impl MatchState {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            MatchState::Game => "In game",
-            MatchState::Replay => "Watching replay",
-            MatchState::Overtime => "In overtime",
-        }
-    }
-}
+use crate::{
+    matches::apis::{EventRanks, NameAPI},
+    rocket_league::{MatchState, Platform, PlayerData, Team, TeamScores},
+};
 
 #[derive(Debug, Clone)]
 pub struct MatchPlayer {

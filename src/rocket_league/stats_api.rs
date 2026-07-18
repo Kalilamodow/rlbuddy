@@ -10,8 +10,6 @@ use std::{
     time::Duration,
 };
 
-use crate::rocket_league::MatchState;
-
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
     #[serde(rename = "Event")]
@@ -130,6 +128,23 @@ impl fmt::Display for Platform {
                 Platform::Bot => "Bot",
             }
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MatchState {
+    Game,
+    Replay,
+    Overtime,
+}
+
+impl MatchState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MatchState::Game => "In game",
+            MatchState::Replay => "Watching replay",
+            MatchState::Overtime => "In overtime",
+        }
     }
 }
 

@@ -4,10 +4,10 @@ use std::time::SystemTime;
 use eframe::egui;
 
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
+use crate::matches::models::{MatchInfo, MatchOverInfo, MatchPlayer};
+use crate::rocket_league::{MatchUpdate, Platform, RLEvent, Team};
 
-use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
-use super::{MatchUpdate, Platform, RLEvent};
-use super::{names::NameAPI, skills::RankAPI};
+use super::apis::{NameAPI, RankAPI};
 
 #[derive(Debug, Default)]
 pub struct MatchesServiceState {
@@ -100,7 +100,7 @@ impl MatchesService {
             .players
             .iter()
             .find(|p| p.is_local_player)
-            .map_or(super::Team::Blue, |p| p.data.team);
+            .map_or(Team::Blue, |p| p.data.team);
 
         current_match
             .players

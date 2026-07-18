@@ -1,6 +1,6 @@
 use crate::common::ReadonlyStateHandle;
 
-use super::{super::matches::MatchesServiceState, match_renderer::MatchRenderer};
+use super::{super::service::MatchesServiceState, match_renderer::MatchRenderer};
 use eframe::egui;
 
 pub struct PastMatchesWidget {

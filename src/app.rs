@@ -2,7 +2,8 @@ use crate::{
     auto_setup::AutoSetupWidget,
     discord,
     hotkey::{HotkeyService, HotkeySettings},
-    rocket_league::{CurrentMatchWidget, MatchesService, PastMatchesWidget, RLEvent, StatsApi},
+    matches::{CurrentMatchWidget, MatchesService, PastMatchesWidget},
+    rocket_league::{RLEvent, StatsApi},
     settings::SettingsWidget,
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
 };
