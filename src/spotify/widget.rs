@@ -80,6 +80,10 @@ impl SpotifyWidget {
                 if ui.button("Skip").clicked() {
                     self.send(SpotifyCommand::Skip);
                 }
+
+                if self.state.read().is_updating {
+                    ui.spinner();
+                }
             });
         });
     }
@@ -158,6 +162,10 @@ impl egui::Widget for &mut SpotifyWidget {
                         self.is_setting_up = true;
                     }
                     return;
+                }
+
+                if state.is_updating {
+                    ui.disable();
                 }
             }
 

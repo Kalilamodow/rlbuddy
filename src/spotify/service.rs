@@ -35,6 +35,7 @@ pub struct SpotifyServiceState {
     pub logged_in: bool,
     pub playback_state: Option<PlaybackState>,
     pub last_updated_at: SystemTime,
+    pub is_updating: bool,
 }
 
 pub const SPOTIFY_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
@@ -57,6 +58,7 @@ impl SpotifyService {
                 logged_in: client.is_some(),
                 playback_state: None,
                 last_updated_at: SystemTime::now(),
+                is_updating: false,
             }),
             client: Arc::new(RwLock::new(client)),
         }
@@ -87,13 +89,7 @@ impl SpotifyService {
             .unwrap_or_default()
             > SPOTIFY_REFRESH_INTERVAL
         {
-            let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
-            self.use_client_in_new_thread(move |client| {
-                let new_playback_state = client.get_playback_state();
-                let mut state = state_ref.write();
-                state.playback_state = new_playback_state;
-                state.last_updated_at = SystemTime::now();
-            });
+            self.use_client_then_update_playback(|_| {});
         }
     }
 
@@ -120,13 +116,13 @@ impl SpotifyService {
                 state.logged_in = false;
             }
             SpotifyCommand::Play => {
-                self.use_client_in_new_thread(Client::unpause_playback);
+                self.use_client_then_update_playback(Client::unpause_playback);
             }
             SpotifyCommand::Pause => {
-                self.use_client_in_new_thread(Client::pause_playback);
+                self.use_client_then_update_playback(Client::pause_playback);
             }
             SpotifyCommand::Skip => {
-                self.use_client_in_new_thread(Client::skip_song);
+                self.use_client_then_update_playback(Client::skip_song);
             }
         }
     }
@@ -139,15 +135,28 @@ impl SpotifyService {
         }
     }
 
-    fn use_client_in_new_thread<F>(&self, fun: F)
+    fn use_client_then_update_playback<F>(&self, fun: F)
     where
         F: Fn(&Client) + Send + 'static,
     {
         let client_ref = Arc::clone(&self.client);
+        let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
         thread::spawn(move || {
             let client = &*client_ref.read().unwrap();
             if let Some(client) = client {
                 fun(client);
+
+                {
+                    let mut state = state_ref.write();
+                    state.is_updating = true;
+                }
+
+                thread::sleep(Duration::from_secs(1));
+                let new_playback_state = client.get_playback_state();
+                let mut state = state_ref.write();
+                state.playback_state = new_playback_state;
+                state.last_updated_at = SystemTime::now();
+                state.is_updating = false;
             }
         });
     }
