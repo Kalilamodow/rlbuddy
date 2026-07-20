@@ -173,7 +173,7 @@ impl egui::Widget for &mut SpotifyWidget {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 let mut settings = self.settings.write();
-                ui.checkbox(&mut settings.pause_during_replay, "Pause during replay");
+                ui.checkbox(&mut settings.pause_during_replay, "Pause during anthems");
             });
 
             if ui.button("Unlink").clicked() {

@@ -175,7 +175,7 @@ impl Client {
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
         {
-            println!("spotify api error: {error:?}");
+            println!("[next] spotify api error: {error:?}");
         }
     }
 
@@ -184,7 +184,7 @@ impl Client {
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
         {
-            println!("spotify api error: {error:?}");
+            println!("[pause] spotify api error: {error:?}");
         }
     }
 
@@ -193,7 +193,7 @@ impl Client {
             .header("Authorization", format!("Bearer {}", self.access_token))
             .send_empty()
         {
-            println!("spotify api error: {error:?}");
+            println!("[play] spotify api error: {error:?}");
         }
     }
 }

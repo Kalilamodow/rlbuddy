@@ -78,6 +78,8 @@ impl SpotifyService {
                 match event {
                     RLEvent::ReplayStart => self.handle_command(SpotifyCommand::Pause),
                     RLEvent::ReplayDone => self.handle_command(SpotifyCommand::Play),
+                    RLEvent::MatchOver(_) => self.handle_command(SpotifyCommand::Pause),
+                    RLEvent::MatchLeft => self.handle_command(SpotifyCommand::Play),
                     _ => {}
                 }
             }
@@ -141,16 +143,17 @@ impl SpotifyService {
     {
         let client_ref = Arc::clone(&self.client);
         let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
+
         thread::spawn(move || {
+            {
+                let mut state = state_ref.write();
+                state.is_updating = true;
+                state.last_updated_at = SystemTime::now();
+            }
+
             let client = &*client_ref.read().unwrap();
             if let Some(client) = client {
                 fun(client);
-
-                {
-                    let mut state = state_ref.write();
-                    state.is_updating = true;
-                    state.last_updated_at = SystemTime::now();
-                }
 
                 thread::sleep(Duration::from_secs(1));
                 let new_playback_state = client.get_playback_state();
