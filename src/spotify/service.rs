@@ -1,4 +1,4 @@
-use super::client::{Client, PlaybackState, SavedCredentials};
+use super::client::{PlaybackState, SavedCredentials, SpotifyClient};
 use crate::{
     common::{ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle},
     stats_api::RLEvent,
@@ -41,7 +41,7 @@ pub struct SpotifyServiceState {
 pub const SPOTIFY_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct SpotifyService {
-    client: Arc<RwLock<Option<Client>>>,
+    client: Arc<RwLock<Option<SpotifyClient>>>,
     settings: ReadWriteStateHandle<SpotifySettings>,
     state: ThreadedReadWriteStateHandle<SpotifyServiceState>,
 }
@@ -50,7 +50,7 @@ impl SpotifyService {
     pub fn new(savedata: Option<SpotifySavedata>) -> Self {
         let savedata = savedata.unwrap_or_default();
 
-        let client = savedata.credentials.map(Client::from_saved);
+        let client = savedata.credentials.map(SpotifyClient::from_saved);
 
         SpotifyService {
             settings: ReadWriteStateHandle::new(savedata.settings),
@@ -76,10 +76,12 @@ impl SpotifyService {
             {
                 drop(settings);
                 match event {
-                    RLEvent::ReplayStart => self.handle_command(SpotifyCommand::Pause),
-                    RLEvent::ReplayDone => self.handle_command(SpotifyCommand::Play),
-                    RLEvent::MatchOver(_) => self.handle_command(SpotifyCommand::Pause),
-                    RLEvent::MatchLeft => self.handle_command(SpotifyCommand::Play),
+                    RLEvent::ReplayStart | RLEvent::MatchOver(_) => {
+                        self.handle_command(SpotifyCommand::Pause);
+                    }
+                    RLEvent::ReplayDone | RLEvent::MatchLeft => {
+                        self.handle_command(SpotifyCommand::Play);
+                    }
                     _ => {}
                 }
             }
@@ -105,7 +107,7 @@ impl SpotifyService {
                 let client_ref = Arc::clone(&self.client);
                 let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
                 thread::spawn(move || {
-                    let new_client = Client::from_scratch(client_id);
+                    let new_client = SpotifyClient::from_scratch(client_id);
                     let mut old_client = client_ref.write().unwrap();
                     *old_client = Some(new_client);
                     state_ref.write().logged_in = true;
@@ -118,13 +120,13 @@ impl SpotifyService {
                 state.logged_in = false;
             }
             SpotifyCommand::Play => {
-                self.use_client_then_update_playback(Client::unpause_playback);
+                self.use_client_then_update_playback(SpotifyClient::unpause_playback);
             }
             SpotifyCommand::Pause => {
-                self.use_client_then_update_playback(Client::pause_playback);
+                self.use_client_then_update_playback(SpotifyClient::pause_playback);
             }
             SpotifyCommand::Skip => {
-                self.use_client_then_update_playback(Client::skip_song);
+                self.use_client_then_update_playback(SpotifyClient::skip_song);
             }
         }
     }
@@ -132,14 +134,14 @@ impl SpotifyService {
     pub fn save(&self) -> SpotifySavedata {
         let client = &*self.client.read().unwrap();
         SpotifySavedata {
-            credentials: client.as_ref().map(Client::save),
+            credentials: client.as_ref().map(SpotifyClient::save),
             settings: self.settings.read().clone(),
         }
     }
 
     fn use_client_then_update_playback<F>(&self, fun: F)
     where
-        F: Fn(&Client) + Send + 'static,
+        F: Fn(&SpotifyClient) + Send + 'static,
     {
         let client_ref = Arc::clone(&self.client);
         let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);

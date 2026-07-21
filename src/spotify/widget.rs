@@ -135,7 +135,6 @@ impl SpotifyWidget {
         ui.add_space(8.0);
         if ui.small_button("Cancel setup").clicked() {
             self.is_setting_up = false;
-            return;
         }
     }
 

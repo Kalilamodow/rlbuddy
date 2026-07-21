@@ -33,7 +33,7 @@ pub struct AuthFlowResponse {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Client {
+pub struct SpotifyClient {
     client_id: String,
     access_token: String,
     refresh_token: String,
@@ -53,7 +53,7 @@ setInterval(() => {
 </script>
 "#;
 
-impl Client {
+impl SpotifyClient {
     pub fn save(&self) -> SavedCredentials {
         SavedCredentials {
             refresh_token: self.refresh_token.clone(),
@@ -61,7 +61,7 @@ impl Client {
         }
     }
 
-    pub fn from_scratch(client_id: String) -> Client {
+    pub fn from_scratch(client_id: String) -> SpotifyClient {
         let verifier = generate_code_verifier();
         let hashed = sha256(&verifier);
         let code_challenge = URL_SAFE_NO_PAD.encode(hashed);
@@ -129,14 +129,14 @@ impl Client {
             .read_json::<AuthFlowResponse>()
             .unwrap();
 
-        Client {
+        SpotifyClient {
             client_id,
             access_token: resp.access_token,
             refresh_token: resp.refresh_token,
         }
     }
 
-    pub fn from_saved(credentials: SavedCredentials) -> Client {
+    pub fn from_saved(credentials: SavedCredentials) -> SpotifyClient {
         let form = [
             ("grant_type", "refresh_token"),
             ("client_id", &credentials.client_id),
@@ -150,7 +150,7 @@ impl Client {
             .read_json()
             .unwrap();
 
-        Client {
+        SpotifyClient {
             access_token: response.access_token,
             refresh_token: credentials.refresh_token,
             client_id: credentials.client_id,
