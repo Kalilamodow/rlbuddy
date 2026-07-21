@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 enum Panel {
     CurrentMatch,
     PastMatches,
@@ -65,6 +65,7 @@ struct AppData {
     hotkey_settings: Option<HotkeySettings>,
     rich_presence_settings: Option<discord::DiscordSettings>,
     spotify_data: Option<SpotifySavedata>,
+    open_panels: Vec<Panel>,
 }
 
 impl Default for AppData {
@@ -74,6 +75,7 @@ impl Default for AppData {
             hotkey_settings: None,
             rich_presence_settings: None,
             spotify_data: None,
+            open_panels: vec![Panel::CurrentMatch],
         }
     }
 }
@@ -150,7 +152,7 @@ impl RlBuddyApp {
 
             hotkey_service,
 
-            open_panels: vec![Panel::CurrentMatch],
+            open_panels: app_data.open_panels,
 
             auto_setup_widget: AutoSetupWidget::new(),
         }
@@ -191,6 +193,7 @@ impl eframe::App for RlBuddyApp {
             hotkey_settings: Some(self.hotkey_service.settings_handle().read().clone()),
             rich_presence_settings: Some(self.discord_service.settings_handle().read().clone()),
             spotify_data: Some(self.spotify_service.save()),
+            open_panels: self.open_panels.clone(),
         };
         eframe::set_value(storage, eframe::APP_KEY, &data);
     }
