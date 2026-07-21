@@ -34,5 +34,5 @@ ureq = "3.3.0"
 [profile.release]
 opt-level = "s"
 strip = "symbols"
-lto = "fat"
+lto = "thin"
 panic = "abort"
