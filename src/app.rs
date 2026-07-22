@@ -264,7 +264,7 @@ impl eframe::App for RlBuddyApp {
                                 Panel::CurrentMatch => ui.add(&self.current_match),
                                 Panel::Discord => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
-                                Panel::PastMatches => ui.add(&self.past_matches),
+                                Panel::PastMatches => ui.add(&mut self.past_matches),
                                 Panel::AutoSetup => ui.add(&mut self.auto_setup_widget),
                                 Panel::Settings => ui.add(&mut self.settings_widget),
                             };

@@ -15,14 +15,18 @@ use std::time::{Duration, SystemTime};
 
 pub struct MatchRenderer<'a> {
     match_info: &'a MatchInfo,
+    is_open: Option<&'a mut bool>,
 }
 
 impl<'a> MatchRenderer<'a> {
-    pub fn new(match_info: &'a MatchInfo) -> MatchRenderer<'a> {
-        MatchRenderer { match_info }
+    pub fn new(match_info: &'a MatchInfo, is_open: Option<&'a mut bool>) -> MatchRenderer<'a> {
+        MatchRenderer {
+            match_info,
+            is_open,
+        }
     }
 
-    fn render_header(&self, ui: &mut egui::Ui) {
+    fn render_header(&mut self, ui: &mut egui::Ui) -> egui::Response {
         ui.horizontal(|ui| {
             if let Some(finished) = &self.match_info.finish {
                 if let Some(winner) = finished.winner.or_else(|| {
@@ -60,7 +64,15 @@ impl<'a> MatchRenderer<'a> {
                 ui.label(text);
                 ui.request_repaint_after(refresh_in);
             }
-        });
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                if let Some(is_open) = &mut self.is_open {
+                    let text = if **is_open { "Close" } else { "View" };
+                    ui.toggle_value(is_open, text);
+                }
+            });
+        })
+        .response
     }
 
     fn render_player(&mut self, ui: &mut egui::Ui, match_player: &MatchPlayer) {
@@ -194,7 +206,12 @@ impl<'a> MatchRenderer<'a> {
 
 impl egui::Widget for MatchRenderer<'_> {
     fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
-        self.render_header(ui);
+        let header_response = self.render_header(ui);
+        if let Some(is_open) = &self.is_open
+            && !**is_open
+        {
+            return header_response;
+        }
 
         egui::Grid::new(self.match_info.started_at)
             .spacing(egui::vec2(8.0, 12.0))

@@ -25,7 +25,7 @@ impl egui::Widget for &CurrentMatchWidget {
                         ui.label("In freeplay");
                     }
                     _ => {
-                        ui.add(MatchRenderer::new(current_match));
+                        ui.add(MatchRenderer::new(current_match, None));
                     }
                 }
             } else {
