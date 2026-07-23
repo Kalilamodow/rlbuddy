@@ -157,17 +157,14 @@ impl SpotifyClient {
         }
     }
 
-    pub fn get_playback_state(&self) -> Option<PlaybackState> {
-        let r = ureq::get("https://api.spotify.com/v1/me/player")
+    pub fn get_playback_state(&self) -> PlaybackState {
+        ureq::get("https://api.spotify.com/v1/me/player/queue")
             .header("Authorization", format!("Bearer {}", self.access_token))
             .call()
-            .unwrap();
-
-        if r.status() == ureq::http::StatusCode::NO_CONTENT {
-            return None;
-        }
-
-        r.into_body().read_json().unwrap()
+            .unwrap()
+            .into_body()
+            .read_json()
+            .unwrap()
     }
 
     pub fn prev_song(&self) {
@@ -216,10 +213,22 @@ pub struct Artist {
 pub struct Track {
     pub name: String,
     pub artists: Vec<Artist>,
+    #[serde(rename = "uri")]
+    pub spotify_uri: String,
 }
 
+// actually queue response
 #[derive(Debug, Deserialize)]
 pub struct PlaybackState {
-    #[serde(rename = "item")]
-    pub track: Track,
+    pub currently_playing: Option<Track>,
+    pub queue: Vec<Track>,
+}
+
+impl Default for PlaybackState {
+    fn default() -> Self {
+        PlaybackState {
+            currently_playing: None,
+            queue: Vec::new(),
+        }
+    }
 }

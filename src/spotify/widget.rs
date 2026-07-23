@@ -58,16 +58,16 @@ impl SpotifyWidget {
 
             ui.vertical(|ui| {
                 let state = self.state.read();
-                let Some(currently_playing) = state.playback_state.as_ref() else {
+                let Some(currently_playing) = state.playback_state.currently_playing.as_ref()
+                else {
                     has_song = false;
                     ui.label("No track currently playing");
                     return;
                 };
 
-                let track = &currently_playing.track;
                 ui.small("Now playing:");
-                ui.label(egui::RichText::new(&track.name).size(16.0));
-                ui.label(&track.artists[0].name);
+                ui.label(egui::RichText::new(&currently_playing.name).size(16.0));
+                ui.label(&currently_playing.artists[0].name);
             });
 
             ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
@@ -77,12 +77,31 @@ impl SpotifyWidget {
                 }
 
                 ui.add_space(4.0);
-                if ui.button("Back").clicked() {
-                    self.send(SpotifyCommand::Prev);
-                }
-                if ui.button("Skip").clicked() {
-                    self.send(SpotifyCommand::Skip);
-                }
+                ui.horizontal(|ui| {
+                    if ui.button("Next").clicked() {
+                        self.send(SpotifyCommand::Skip);
+                    }
+                    if ui.button("Back").clicked() {
+                        self.send(SpotifyCommand::Prev);
+                    }
+                });
+
+                egui::ComboBox::from_id_salt("skip to song dropdown")
+                    .selected_text("Skip to song")
+                    .show_ui(ui, |ui| {
+                        let mut skip_n: Option<usize> = None;
+                        for (index, song) in
+                            self.state.read().playback_state.queue.iter().enumerate()
+                        {
+                            if ui.button(&song.name).clicked() {
+                                skip_n = Some(index + 1);
+                            }
+                        }
+
+                        if let Some(n) = skip_n {
+                            self.send(SpotifyCommand::SkipN(n));
+                        }
+                    });
 
                 if self.state.read().is_updating {
                     ui.spinner();

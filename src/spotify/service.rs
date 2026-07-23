@@ -27,6 +27,7 @@ pub enum SpotifyCommand {
     Pause,
     Prev,
     Skip,
+    SkipN(usize),
     Login(String), // client id
     Logout,
 }
@@ -34,7 +35,7 @@ pub enum SpotifyCommand {
 #[derive(Debug)]
 pub struct SpotifyServiceState {
     pub logged_in: bool,
-    pub playback_state: Option<PlaybackState>,
+    pub playback_state: PlaybackState,
     pub last_updated_at: SystemTime,
     pub is_updating: bool,
 }
@@ -57,7 +58,7 @@ impl SpotifyService {
             settings: ReadWriteStateHandle::new(savedata.settings),
             state: ThreadedReadWriteStateHandle::new(SpotifyServiceState {
                 logged_in: client.is_some(),
-                playback_state: None,
+                playback_state: PlaybackState::default(),
                 last_updated_at: SystemTime::now(),
                 is_updating: false,
             }),
@@ -132,6 +133,11 @@ impl SpotifyService {
             SpotifyCommand::Prev => {
                 self.use_client_then_update_playback(SpotifyClient::prev_song);
             }
+            SpotifyCommand::SkipN(amount) => {
+                for _ in 0..amount {
+                    self.use_client_then_update_playback(SpotifyClient::skip_song);
+                }
+            }
         }
     }
 
@@ -145,7 +151,7 @@ impl SpotifyService {
 
     fn use_client_then_update_playback<F>(&self, fun: F)
     where
-        F: Fn(&SpotifyClient) + Send + 'static,
+        F: FnOnce(&SpotifyClient) + Send + 'static,
     {
         let client_ref = Arc::clone(&self.client);
         let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
