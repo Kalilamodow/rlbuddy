@@ -170,6 +170,15 @@ impl SpotifyClient {
         r.into_body().read_json().unwrap()
     }
 
+    pub fn prev_song(&self) {
+        if let Err(error) = ureq::post("https://api.spotify.com/v1/me/player/previous")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send_empty()
+        {
+            println!("[previous] spotify api error: {error:?}");
+        }
+    }
+
     pub fn skip_song(&self) {
         if let Err(error) = ureq::post("https://api.spotify.com/v1/me/player/next")
             .header("Authorization", format!("Bearer {}", self.access_token))

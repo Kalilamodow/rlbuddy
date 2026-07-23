@@ -77,6 +77,9 @@ impl SpotifyWidget {
                 }
 
                 ui.add_space(4.0);
+                if ui.button("Back").clicked() {
+                    self.send(SpotifyCommand::Prev);
+                }
                 if ui.button("Skip").clicked() {
                     self.send(SpotifyCommand::Skip);
                 }

@@ -25,6 +25,7 @@ pub struct SpotifySavedata {
 pub enum SpotifyCommand {
     Play,
     Pause,
+    Prev,
     Skip,
     Login(String), // client id
     Logout,
@@ -127,6 +128,9 @@ impl SpotifyService {
             }
             SpotifyCommand::Skip => {
                 self.use_client_then_update_playback(SpotifyClient::skip_song);
+            }
+            SpotifyCommand::Prev => {
+                self.use_client_then_update_playback(SpotifyClient::prev_song);
             }
         }
     }
