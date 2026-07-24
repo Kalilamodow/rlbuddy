@@ -4,6 +4,7 @@ use std::time::SystemTime;
 use eframe::egui;
 
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
+use crate::matches::apis::EpicIdAPI;
 use crate::rocket_league::{Platform, Team};
 use crate::stats_api::{MatchUpdate, RLEvent};
 
@@ -22,6 +23,7 @@ pub struct MatchesService {
     local_player_id: Option<String>,
     rank_api: RankAPI,
     names_api: NameAPI,
+    epic_ids_api: EpicIdAPI,
 }
 
 impl MatchesService {
@@ -31,6 +33,7 @@ impl MatchesService {
             local_player_id: None,
             rank_api: RankAPI::new(ctx.clone()),
             names_api: NameAPI::new(ctx.clone()),
+            epic_ids_api: EpicIdAPI::new(ctx.clone()),
         }
     }
 
@@ -82,6 +85,7 @@ impl MatchesService {
                     == self.local_player_id.as_ref(),
                 left: false,
                 uncensored_name: None,
+                epic_name: None,
                 skill: None,
                 data: remaining_player,
             });
@@ -90,6 +94,10 @@ impl MatchesService {
         for player in &mut current_match.players {
             if player.data.platform != Platform::Bot {
                 player.skill = self.rank_api.get(&player.data.platform_id);
+            }
+
+            if matches!(player.data.platform, Platform::Switch) {
+                player.epic_name = self.epic_ids_api.get(&player.data.platform_id);
             }
 
             if is_censored(player.display_name()) {

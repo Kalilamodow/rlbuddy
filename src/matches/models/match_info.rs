@@ -10,6 +10,7 @@ use crate::{
 pub struct MatchPlayer {
     pub left: bool,
     pub uncensored_name: Option<Arc<String>>,
+    pub epic_name: Option<Arc<String>>,
     pub data: PlayerData,
     pub skill: Option<Arc<EventRanks>>,
     pub is_local_player: bool,
@@ -29,13 +30,18 @@ impl MatchPlayer {
     }
 
     pub fn trn_link(&self) -> Option<String> {
-        let (prefix, id) = match self.data.platform {
-            Platform::Switch | Platform::Bot => return None,
-            Platform::Epic => ("epic", self.display_name()),
-            Platform::PlayStation => ("psn", self.display_name()),
-            Platform::Xbox => ("xbl", self.display_name()),
-            Platform::Steam => ("steam", self.data.platform_id.split('|').nth(1).unwrap()),
-        };
+        let (prefix, id) = self
+            .epic_name
+            .as_ref()
+            .map(|n| ("epic", n.as_str()))
+            .unwrap_or(match self.data.platform {
+                Platform::Bot => return None,
+                Platform::Epic => ("epic", self.display_name()),
+                Platform::Switch => ("switch", self.display_name()),
+                Platform::PlayStation => ("psn", self.display_name()),
+                Platform::Xbox => ("xbl", self.display_name()),
+                Platform::Steam => ("steam", self.data.platform_id.split('|').nth(1).unwrap()),
+            });
 
         Some(format!(
             "https://rocketleague.tracker.network/rocket-league/profile/{prefix}/{id}/overview"
