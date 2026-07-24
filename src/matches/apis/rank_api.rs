@@ -95,11 +95,17 @@ impl RankAPI {
         }
     }
 
+    pub fn invalidate<'a>(&self, player_ids: impl IntoIterator<Item = &'a str>) {
+        let mut current = self.ranks.write().unwrap();
+        for id in player_ids {
+            current.remove(id);
+        }
+    }
+
     // String reference to only clone it if we actually need the ownership for
     // a new thread
     pub fn get(&self, platform_id: &String) -> Option<Arc<EventRanks>> {
-        let current = Arc::clone(&self.ranks);
-        if let Some(existing) = current.read().unwrap().get(platform_id) {
+        if let Some(existing) = self.ranks.read().unwrap().get(platform_id) {
             return existing.clone();
         }
 
@@ -108,6 +114,7 @@ impl RankAPI {
 
         let url = format!("{}?playerId={}", API_URL, urlencoding::encode(&platform_id));
 
+        let current = Arc::clone(&self.ranks);
         thread::spawn(move || {
             // drop the lock before making the http request
             {

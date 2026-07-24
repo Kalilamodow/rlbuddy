@@ -145,6 +145,13 @@ impl MatchesService {
                     return;
                 };
 
+                self.rank_api.invalidate(
+                    current_match
+                        .players
+                        .iter()
+                        .map(|p| p.data.platform_id.as_str()),
+                );
+
                 if current_match.players.len() <= 1 {
                     return;
                 }
