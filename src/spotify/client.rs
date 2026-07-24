@@ -174,26 +174,34 @@ impl SpotifyClient {
         });
 
         let access_token_for_state = self.access_token.clone();
-        let state_thread = thread::spawn(move || {
-            ureq::get("https://api.spotify.com/v1/me/player")
+        let state_thread = thread::spawn(move || -> Option<PlaybackStateResponse> {
+            let r = ureq::get("https://api.spotify.com/v1/me/player")
                 .header(
                     "Authorization",
                     format!("Bearer {}", access_token_for_state),
                 )
                 .call()
-                .unwrap()
-                .into_body()
-                .read_json::<PlaybackStateResponse>()
-                .unwrap()
+                .unwrap();
+
+            if r.status() == ureq::http::StatusCode::NO_CONTENT {
+                return None;
+            }
+
+            r.into_body().read_json().unwrap()
         });
 
         let queue = queue_thread.join().unwrap();
         let state = state_thread.join().unwrap();
 
+        let (currently_playing, context) = match state {
+            Some(s) => (s.item, s.context.map(|c| c.uri)),
+            None => (None, None),
+        };
+
         PlaybackState {
-            currently_playing: state.item,
+            currently_playing,
+            context,
             queue: queue.queue,
-            context: state.context.map(|c| c.uri),
         }
     }
 
