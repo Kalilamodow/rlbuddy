@@ -1,6 +1,7 @@
 use super::client::{PlaybackState, SavedCredentials, SpotifyClient};
 use crate::{
     common::{ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle},
+    spotify::client::SpotifyUri,
     stats_api::RLEvent,
 };
 use serde::{Deserialize, Serialize};
@@ -27,8 +28,8 @@ pub enum SpotifyCommand {
     Pause,
     Prev,
     Skip,
-    SkipN(usize),
-    Login(String), // client id
+    PlaySong(SpotifyUri, Option<SpotifyUri>), // song uri, context uri
+    Login(String),                            // client id
     Logout,
 }
 
@@ -133,10 +134,8 @@ impl SpotifyService {
             SpotifyCommand::Prev => {
                 self.use_client_then_update_playback(SpotifyClient::prev_song);
             }
-            SpotifyCommand::SkipN(amount) => {
-                for _ in 0..amount {
-                    self.use_client_then_update_playback(SpotifyClient::skip_song);
-                }
+            SpotifyCommand::PlaySong(song, context) => {
+                self.use_client_then_update_playback(move |c| c.play_song(song, context));
             }
         }
     }

@@ -1,7 +1,10 @@
 use super::service::{
     SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings,
 };
-use crate::common::{ReadWriteStateHandle, ThreadedReadonlyStateHandle};
+use crate::{
+    common::{ReadWriteStateHandle, ThreadedReadonlyStateHandle},
+    spotify::client::SpotifyUri,
+};
 use eframe::egui::{self, TextBuffer};
 use std::time::SystemTime;
 
@@ -89,17 +92,16 @@ impl SpotifyWidget {
                 egui::ComboBox::from_id_salt("skip to song dropdown")
                     .selected_text("Skip to song")
                     .show_ui(ui, |ui| {
-                        let mut skip_n: Option<usize> = None;
-                        for (index, song) in
-                            self.state.read().playback_state.queue.iter().enumerate()
-                        {
+                        let mut new_song: Option<SpotifyUri> = None;
+                        for song in &self.state.read().playback_state.queue {
                             if ui.button(&song.name).clicked() {
-                                skip_n = Some(index + 1);
+                                new_song = Some(song.uri.clone());
                             }
                         }
 
-                        if let Some(n) = skip_n {
-                            self.send(SpotifyCommand::SkipN(n));
+                        if let Some(song) = new_song {
+                            let context_uri = self.state.read().playback_state.context.clone();
+                            self.send(SpotifyCommand::PlaySong(song, context_uri));
                         }
                     });
 

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::io::{Read as _, Write};
 use std::net::TcpListener;
+use std::thread;
 
 const REDIRECT_URL: &str = "http://127.0.0.1:7742/";
 
@@ -158,13 +159,42 @@ impl SpotifyClient {
     }
 
     pub fn get_playback_state(&self) -> PlaybackState {
-        ureq::get("https://api.spotify.com/v1/me/player/queue")
-            .header("Authorization", format!("Bearer {}", self.access_token))
-            .call()
-            .unwrap()
-            .into_body()
-            .read_json()
-            .unwrap()
+        let access_token_for_queue = self.access_token.clone();
+        let queue_thread = thread::spawn(move || {
+            ureq::get("https://api.spotify.com/v1/me/player/queue")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", access_token_for_queue),
+                )
+                .call()
+                .unwrap()
+                .into_body()
+                .read_json::<GetQueueResponse>()
+                .unwrap()
+        });
+
+        let access_token_for_state = self.access_token.clone();
+        let state_thread = thread::spawn(move || {
+            ureq::get("https://api.spotify.com/v1/me/player")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", access_token_for_state),
+                )
+                .call()
+                .unwrap()
+                .into_body()
+                .read_json::<PlaybackStateResponse>()
+                .unwrap()
+        });
+
+        let queue = queue_thread.join().unwrap();
+        let state = state_thread.join().unwrap();
+
+        PlaybackState {
+            currently_playing: state.item,
+            queue: queue.queue,
+            context: state.context.map(|c| c.uri),
+        }
     }
 
     pub fn prev_song(&self) {
@@ -202,6 +232,39 @@ impl SpotifyClient {
             println!("[play] spotify api error: {error:?}");
         }
     }
+
+    pub fn play_song(&self, song: SpotifyUri, context: Option<SpotifyUri>) {
+        if let Err(error) = ureq::put("https://api.spotify.com/v1/me/player/play")
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send_json(PlayerPlayRequest {
+                context_uri: context,
+                offset: PlayerPlayRequestOffset { uri: song },
+            })
+        {
+            println!("[play song] spotify api error: {error:?}");
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct PlayerPlayRequestOffset {
+    uri: SpotifyUri,
+}
+
+#[derive(Debug, Serialize)]
+struct PlayerPlayRequest {
+    context_uri: Option<SpotifyUri>,
+    offset: PlayerPlayRequestOffset,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct SpotifyUri(String);
+
+impl SpotifyUri {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -213,15 +276,30 @@ pub struct Artist {
 pub struct Track {
     pub name: String,
     pub artists: Vec<Artist>,
-    #[serde(rename = "uri")]
-    pub spotify_uri: String,
+    pub uri: SpotifyUri,
 }
 
-// actually queue response
 #[derive(Debug, Deserialize)]
+pub struct SpotifyContextObject {
+    pub uri: SpotifyUri,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlaybackStateResponse {
+    pub item: Option<Track>,
+    pub context: Option<SpotifyContextObject>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetQueueResponse {
+    pub queue: Vec<Track>,
+}
+
+#[derive(Debug)]
 pub struct PlaybackState {
     pub currently_playing: Option<Track>,
     pub queue: Vec<Track>,
+    pub context: Option<SpotifyUri>,
 }
 
 impl Default for PlaybackState {
@@ -229,6 +307,7 @@ impl Default for PlaybackState {
         PlaybackState {
             currently_playing: None,
             queue: Vec::new(),
+            context: None,
         }
     }
 }
