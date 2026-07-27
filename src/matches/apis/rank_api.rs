@@ -1,14 +1,13 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    thread,
-};
+use std::sync::Arc;
 
 use eframe::egui;
 use num_enum::TryFromPrimitive as _;
 use serde::Deserialize;
 
-use crate::rocket_league::{Division, Playlist, Rank};
+use crate::{
+    common::CachedHttpApi,
+    rocket_league::{Division, Playlist, Rank},
+};
 
 const API_URL: &str = "https://mmr.kmdw.dev/get-skills";
 
@@ -21,12 +20,12 @@ struct GetPlayerSkillsPlaylistData {
 }
 
 #[derive(Deserialize, Debug)]
-struct GetPlayerSkillsResponse {
+pub struct GetPlayerSkillsResponse {
     playlists: Vec<GetPlayerSkillsPlaylistData>,
 }
 
 impl GetPlayerSkillsResponse {
-    pub fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
+    fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
         let playlist_id: u8 = playlist.into();
         self.playlists.iter().find(|sk| sk.id == playlist_id)
     }
@@ -81,65 +80,12 @@ impl EventRanks {
     }
 }
 
-pub struct RankAPI {
-    // option for whether its loaded yet
-    ranks: Arc<RwLock<HashMap<String, Option<Arc<EventRanks>>>>>,
-    context: egui::Context,
-}
+pub type RankAPI = CachedHttpApi<String, EventRanks, GetPlayerSkillsResponse>;
 
-impl RankAPI {
-    pub fn new(context: egui::Context) -> RankAPI {
-        RankAPI {
-            ranks: Arc::new(RwLock::new(HashMap::new())),
-            context,
-        }
-    }
-
-    pub fn invalidate<'a>(&self, player_ids: impl IntoIterator<Item = &'a str>) {
-        let mut current = self.ranks.write().unwrap();
-        for id in player_ids {
-            current.remove(id);
-        }
-    }
-
-    // String reference to only clone it if we actually need the ownership for
-    // a new thread
-    pub fn get(&self, platform_id: &String) -> Option<Arc<EventRanks>> {
-        if let Some(existing) = self.ranks.read().unwrap().get(platform_id) {
-            return existing.clone();
-        }
-
-        let platform_id = platform_id.clone();
-        let context = self.context.clone();
-
-        let url = format!("{}?playerId={}", API_URL, urlencoding::encode(&platform_id));
-
-        let current = Arc::clone(&self.ranks);
-        thread::spawn(move || {
-            // drop the lock before making the http request
-            {
-                let mut current = current.write().unwrap();
-                current.insert(platform_id.clone(), None);
-            }
-
-            let Ok(mut response) = ureq::get(&url).call() else {
-                let mut current = current.write().unwrap();
-                current.remove(&platform_id);
-                return;
-            };
-
-            let response = response
-                .body_mut()
-                .read_json::<GetPlayerSkillsResponse>()
-                .unwrap();
-
-            let ranks = EventRanks::from_skills(&response);
-
-            let mut current = current.write().unwrap();
-            current.insert(platform_id, Some(Arc::new(ranks)));
-            context.request_repaint();
-        });
-
-        None
-    }
+pub fn new_rank_api(context: egui::Context) -> RankAPI {
+    CachedHttpApi::new(
+        context,
+        Box::new(|player_id| format!("{}?playerId={}", API_URL, urlencoding::encode(player_id))),
+        Arc::new(|response| Some(EventRanks::from_skills(&response))),
+    )
 }

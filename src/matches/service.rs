@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use eframe::egui;
 
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
-use crate::matches::apis::EpicIdAPI;
+use crate::matches::apis::{EpicIdAPI, new_epic_id_api, new_name_api, new_rank_api};
 use crate::rocket_league::{Platform, Team};
 use crate::stats_api::{MatchUpdate, RLEvent};
 
@@ -31,9 +31,9 @@ impl MatchesService {
         MatchesService {
             state: ReadWriteStateHandle::default(),
             local_player_id: None,
-            rank_api: RankAPI::new(ctx.clone()),
-            names_api: NameAPI::new(ctx.clone()),
-            epic_ids_api: EpicIdAPI::new(ctx.clone()),
+            rank_api: new_rank_api(ctx.clone()),
+            names_api: new_name_api(ctx.clone()),
+            epic_ids_api: new_epic_id_api(ctx.clone()),
         }
     }
 
@@ -145,12 +145,8 @@ impl MatchesService {
                     return;
                 };
 
-                self.rank_api.invalidate(
-                    current_match
-                        .players
-                        .iter()
-                        .map(|p| p.data.platform_id.as_str()),
-                );
+                self.rank_api
+                    .invalidate(current_match.players.iter().map(|p| &p.data.platform_id));
 
                 if current_match.players.len() <= 1 {
                     return;
