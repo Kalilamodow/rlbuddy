@@ -12,6 +12,7 @@ pub struct CachedHttpApi<Key, Value, Response> {
     context: egui::Context,
     url_maker: Box<dyn Fn(&Key) -> String>,
     response_to_value: Arc<dyn Fn(Response) -> Option<Value> + Send + Sync>,
+    agent: ureq::Agent,
 }
 
 impl<Key, Value, Response> CachedHttpApi<Key, Value, Response>
@@ -25,11 +26,16 @@ where
         url_maker: Box<dyn Fn(&Key) -> String>,
         response_to_value: Arc<dyn Fn(Response) -> Option<Value> + Send + Sync>,
     ) -> Self {
+        let ureq_config = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .build();
+
         Self {
             cache: Arc::default(),
             context,
             url_maker,
             response_to_value,
+            agent: ureq_config.into(),
         }
     }
 
@@ -45,8 +51,10 @@ where
 
         let url = (self.url_maker)(&player_id);
         let response_to_value = Arc::clone(&self.response_to_value);
+        let agent = self.agent.clone();
+
         thread::spawn(move || {
-            let Ok(mut response) = ureq::get(&url).call() else {
+            let Ok(mut response) = agent.get(&url).call() else {
                 let mut current = current.write().unwrap();
                 current.remove(&player_id);
                 return;
