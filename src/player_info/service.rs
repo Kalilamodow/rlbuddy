@@ -63,7 +63,8 @@ impl egui::Widget for &mut PlayerInfoService {
                     .map_or(&data.platform_id, |p| &p.platform_info.platform_user_handle),
             )
             .open(open)
-            .default_width(ui.available_width())
+            .collapsible(false)
+            .resizable(false)
             .show(ui.ctx(), |ui| {
                 if let Some(profile) = profile {
                     ui.add(TrackerWidget::new(profile));

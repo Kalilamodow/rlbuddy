@@ -1,11 +1,36 @@
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use eframe::egui::{self, Color32};
 use num_enum::{FromPrimitive, TryFromPrimitive};
 
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+const RANK_NAMES: [&str; 23] = [
+    "Unranked",
+    "Bronze I",
+    "Bronze II",
+    "Bronze III",
+    "Silver I",
+    "Silver II",
+    "Silver III",
+    "Gold I",
+    "Gold II",
+    "Gold III",
+    "Platinum I",
+    "Platinum II",
+    "Platinum III",
+    "Diamond I",
+    "Diamond II",
+    "Diamond III",
+    "Champion I",
+    "Champion II",
+    "Champion III",
+    "Grand Champion I",
+    "Grand Champion II",
+    "Grand Champion III",
+    "Supersonic Legend",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
-#[allow(dead_code)] // since its constructed with mem::transmute
 pub enum Rank {
     Unranked,
     Bronze1,
@@ -34,31 +59,7 @@ pub enum Rank {
 
 impl Rank {
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Rank::Unranked => "Unranked",
-            Rank::Bronze1 => "Bronze I",
-            Rank::Bronze2 => "Bronze II",
-            Rank::Bronze3 => "Bronze III",
-            Rank::Silver1 => "Silver I",
-            Rank::Silver2 => "Silver II",
-            Rank::Silver3 => "Silver III",
-            Rank::Gold1 => "Gold I",
-            Rank::Gold2 => "Gold II",
-            Rank::Gold3 => "Gold III",
-            Rank::Plat1 => "Platinum I",
-            Rank::Plat2 => "Platinum II",
-            Rank::Plat3 => "Platinum III",
-            Rank::Diamond1 => "Diamond I",
-            Rank::Diamond2 => "Diamond II",
-            Rank::Diamond3 => "Diamond III",
-            Rank::Champ1 => "Champion I",
-            Rank::Champ2 => "Champion II",
-            Rank::Champ3 => "Champion III",
-            Rank::GC1 => "Grand Champion I",
-            Rank::GC2 => "Grand Champion II",
-            Rank::GC3 => "Grand Champion III",
-            Rank::Ssl => "Supersonic Legend",
-        }
+        RANK_NAMES[*self as usize]
     }
 
     pub fn to_image(&self) -> egui::ImageSource<'static> {
@@ -130,6 +131,15 @@ impl Rank {
             ..=1351 => Rank::GC3,
             _ => Rank::Ssl,
         }
+    }
+}
+
+impl FromStr for Rank {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let index = RANK_NAMES.iter().position(|rank| *rank == s).ok_or(())?;
+        Rank::try_from(index as u8).map_err(|_| ())
     }
 }
 

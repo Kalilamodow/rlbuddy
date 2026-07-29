@@ -12,6 +12,28 @@ pub struct RankIconMetadata {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DefaultMetadata {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SegmentStat {
+    pub display_name: String,
+    pub display_value: Option<String>,
+}
+
+const NONE_STRING: &str = "-";
+
+impl SegmentStat {
+    pub fn value(&self) -> &str {
+        self.display_value
+            .as_ref()
+            .map_or(NONE_STRING, |v| v.as_str())
+    }
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverviewSegmentStatsStatWithMetadata {
     pub display_name: String,
@@ -20,16 +42,9 @@ pub struct OverviewSegmentStatsStatWithMetadata {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OverviewSegmentStatsStat {
-    pub display_name: String,
-    pub display_value: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct OverviewSegmentStats {
-    pub wins: OverviewSegmentStatsStat,
-    pub goals: OverviewSegmentStatsStat,
+    pub wins: SegmentStat,
+    pub goals: SegmentStat,
     pub season_reward_level: OverviewSegmentStatsStatWithMetadata,
 }
 
@@ -40,10 +55,32 @@ pub struct OverviewSegment {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistSegmentStatsStatWithMetadata {
+    pub metadata: DefaultMetadata,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistSegmentStats {
+    pub tier: PlaylistSegmentStatsStatWithMetadata,
+    pub win_streak: SegmentStat,
+    pub rating: SegmentStat,
+    pub peak_rating: SegmentStat,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistSegment {
+    pub metadata: DefaultMetadata,
+    pub stats: PlaylistSegmentStats,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Segment {
     Overview(OverviewSegment),
-    Playlist,
+    Playlist(PlaylistSegment),
     PlaylistAverage,
     #[serde(rename = "peak-rating")]
     PeakRating,
