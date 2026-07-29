@@ -30,6 +30,7 @@ pub enum SpotifyCommand {
     Skip,
     PlaySong(SpotifyUri, Option<SpotifyUri>), // song uri, context uri
     Login(String),                            // client id
+    LoginWithSaved(SavedCredentials),
     Logout,
 }
 
@@ -53,18 +54,41 @@ impl SpotifyService {
     pub fn new(savedata: Option<SpotifySavedata>) -> Self {
         let savedata = savedata.unwrap_or_default();
 
-        let client = savedata.credentials.map(SpotifyClient::from_saved);
-
-        SpotifyService {
+        let client: Arc<RwLock<Option<SpotifyClient>>> = Arc::default();
+        let mut svc = SpotifyService {
             settings: ReadWriteStateHandle::new(savedata.settings),
             state: ThreadedReadWriteStateHandle::new(SpotifyServiceState {
-                logged_in: client.is_some(),
+                logged_in: false,
                 playback_state: PlaybackState::default(),
                 last_updated_at: SystemTime::now(),
                 is_updating: false,
             }),
-            client: Arc::new(RwLock::new(client)),
+            client,
+        };
+
+        if let Some(credentials) = savedata.credentials {
+            svc.handle_command(SpotifyCommand::LoginWithSaved(credentials));
         }
+
+        svc
+    }
+
+    fn set_client<F>(&self, new_client: F)
+    where
+        F: FnOnce() -> SpotifyClient + Send + 'static,
+    {
+        if self.client.read().unwrap().is_some() {
+            return;
+        }
+
+        let client_ref = Arc::clone(&self.client);
+        let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
+        thread::spawn(move || {
+            let new_client = new_client();
+            let mut old_client = client_ref.write().unwrap();
+            *old_client = Some(new_client);
+            state_ref.write().logged_in = true;
+        });
     }
 
     pub fn update(&mut self, event: &Arc<Option<RLEvent>>, command: Option<SpotifyCommand>) {
@@ -103,18 +127,10 @@ impl SpotifyService {
     pub fn handle_command(&mut self, command: SpotifyCommand) {
         match command {
             SpotifyCommand::Login(client_id) => {
-                if self.client.read().unwrap().is_some() {
-                    return;
-                }
-
-                let client_ref = Arc::clone(&self.client);
-                let state_ref = ThreadedReadWriteStateHandle::clone(&self.state);
-                thread::spawn(move || {
-                    let new_client = SpotifyClient::from_scratch(client_id);
-                    let mut old_client = client_ref.write().unwrap();
-                    *old_client = Some(new_client);
-                    state_ref.write().logged_in = true;
-                });
+                self.set_client(|| SpotifyClient::from_scratch(client_id));
+            }
+            SpotifyCommand::LoginWithSaved(credentials) => {
+                self.set_client(|| SpotifyClient::from_saved(credentials));
             }
             SpotifyCommand::Logout => {
                 let mut client = self.client.write().unwrap();
