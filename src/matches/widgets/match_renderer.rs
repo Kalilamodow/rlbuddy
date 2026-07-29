@@ -97,14 +97,21 @@ impl<'a> MatchRenderer<'a> {
                         Team::Orange => Color32::ORANGE,
                     }
                 };
+
                 ui.add(
                     egui::Label::new(
                         bold_text(match_player.display_name())
                             .color(name_color)
                             .size(15.0),
                     )
+                    .sense(egui::Sense::CLICK)
                     .extend(),
-                );
+                )
+                .context_menu(|ui| {
+                    if ui.button("Copy player id").clicked() {
+                        ui.ctx().copy_text(match_player.data.platform_id.clone());
+                    }
+                });
 
                 ui.label(
                     egui::RichText::new(match_player.data.platform.to_string())
