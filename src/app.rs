@@ -3,7 +3,7 @@ use crate::{
     discord,
     hotkey::{HotkeyService, HotkeySettings},
     matches::{CurrentMatchWidget, MatchesService, PastMatchesWidget},
-    player_info::{PlayerInfoService, PlayerSearchWidget},
+    player_info::{PlayerInfoService, PlayerInfoServiceCommand, PlayerSearchWidget},
     settings::SettingsWidget,
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
     stats_api::{RLEvent, StatsApi},
@@ -268,7 +268,7 @@ impl eframe::App for RlBuddyApp {
                             ui.separator();
 
                             match panel {
-                                Panel::CurrentMatch => ui.add(&self.current_match),
+                                Panel::CurrentMatch => ui.add(&mut self.current_match),
                                 Panel::Discord => ui.add(&mut self.discord_widget),
                                 Panel::Spotify => ui.add(&mut self.spotify_widget),
                                 Panel::PastMatches => ui.add(&mut self.past_matches),
@@ -300,8 +300,13 @@ impl eframe::App for RlBuddyApp {
             .update(&stats_api_latest, self.spotify_widget.get_command());
         self.matches_service.update(ctx, &stats_api_latest);
 
-        self.player_info_service
-            .update(self.player_search_widget.get_command());
+        let open_player_info: Option<PlayerInfoServiceCommand> = self
+            .player_search_widget
+            .get_command()
+            .or_else(|| self.current_match.get_command())
+            .or_else(|| self.past_matches.get_command());
+
+        self.player_info_service.update(open_player_info);
         self.discord_service.update();
 
         if let Some(event) = stats_api_latest.as_ref() {

@@ -16,13 +16,19 @@ use std::time::{Duration, SystemTime};
 pub struct MatchRenderer<'a> {
     match_info: &'a MatchInfo,
     is_open: Option<&'a mut bool>,
+    wants_more_player_info: &'a mut Option<MatchPlayer>,
 }
 
 impl<'a> MatchRenderer<'a> {
-    pub fn new(match_info: &'a MatchInfo, is_open: Option<&'a mut bool>) -> MatchRenderer<'a> {
+    pub fn new(
+        match_info: &'a MatchInfo,
+        is_open: Option<&'a mut bool>,
+        wants_more_player_info: &'a mut Option<MatchPlayer>,
+    ) -> MatchRenderer<'a> {
         MatchRenderer {
             match_info,
             is_open,
+            wants_more_player_info,
         }
     }
 
@@ -126,10 +132,10 @@ impl<'a> MatchRenderer<'a> {
 
         center_label(ui, match_player.data.score.to_string());
 
-        if let Some(trn_link) = match_player.trn_link()
-            && ui.button("TRN").clicked()
-        {
-            let _ = webbrowser::open(&trn_link);
+        if !matches!(match_player.data.platform, Platform::Bot) {
+            if ui.button("More").clicked() {
+                *self.wants_more_player_info = Some(match_player.clone());
+            }
         }
 
         ui.end_row();
