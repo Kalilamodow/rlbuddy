@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use eframe::egui;
 
@@ -7,12 +7,12 @@ use crate::{
     rocket_league::Rank,
 };
 
-pub struct TrackerWidget {
-    profile: Arc<ProfileData>,
+pub struct TrackerWidget<'a> {
+    profile: &'a ProfileData,
 }
 
-impl TrackerWidget {
-    pub fn new(profile: Arc<ProfileData>) -> Self {
+impl<'a> TrackerWidget<'a> {
+    pub fn new(profile: &'a ProfileData) -> Self {
         Self { profile }
     }
 
@@ -104,7 +104,7 @@ impl TrackerWidget {
     }
 }
 
-impl egui::Widget for TrackerWidget {
+impl<'a> egui::Widget for TrackerWidget<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
             self.render_overview(ui);

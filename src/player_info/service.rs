@@ -1,6 +1,8 @@
 use super::trn::{PlayerKey, TrackerAPI, new_tracker_api};
 use crate::{
-    player_info::trn_widget::TrackerWidget, rocket_league::Platform, stats_api::PlayerData,
+    player_info::{trn::TRNError, trn_widget::TrackerWidget},
+    rocket_league::Platform,
+    stats_api::PlayerData,
 };
 use eframe::egui;
 
@@ -57,21 +59,41 @@ impl egui::Widget for &mut PlayerInfoService {
             let OpenedPlayer { open, data } = player;
             let profile = self.trn.get(data);
 
-            egui::Window::new(
-                profile
-                    .as_ref()
-                    .map_or(&data.platform_id, |p| &p.platform_info.platform_user_handle),
-            )
-            .open(open)
-            .collapsible(false)
-            .resizable(false)
-            .show(ui.ctx(), |ui| {
-                if let Some(profile) = profile {
-                    ui.add(TrackerWidget::new(profile));
-                } else {
-                    ui.spinner();
-                }
-            });
+            let display = if let Some(profile_result) = profile.as_ref()
+                && let Ok(profile) = profile_result.as_ref()
+            {
+                &profile.platform_info.platform_user_handle
+            } else {
+                &data.platform_id
+            };
+
+            egui::Window::new(display)
+                .open(open)
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    if let Some(profile) = profile {
+                        match profile.as_ref() {
+                            Ok(profile) => {
+                                ui.add(TrackerWidget::new(profile));
+                            }
+                            Err(error) => {
+                                match error {
+                                    TRNError::NotFound => ui.colored_label(
+                                        ui.visuals().error_fg_color,
+                                        "Player not found.",
+                                    ),
+                                    TRNError::Other(e) => ui.colored_label(
+                                        ui.visuals().error_fg_color,
+                                        format!("Unexpected error: \"{e}\""),
+                                    ),
+                                };
+                            }
+                        }
+                    } else {
+                        ui.spinner();
+                    }
+                });
         }
 
         self.open_players.retain(|w| w.open);

@@ -99,9 +99,32 @@ pub struct ProfileData {
     pub segments: Vec<Segment>,
 }
 
+#[derive(Debug)]
+pub enum TRNError {
+    NotFound,
+    Other(String),
+}
+
 #[derive(Debug, Deserialize)]
-pub struct ProfileResponse {
-    pub data: ProfileData,
+#[serde(rename_all = "camelCase")]
+pub struct ErrorResponseData {
+    pub code: String,
+}
+
+impl From<ErrorResponseData> for TRNError {
+    fn from(value: ErrorResponseData) -> Self {
+        match value.code.as_str() {
+            "CollectorResultStatus::NotFound" => TRNError::NotFound,
+            _ => TRNError::Other(value.code),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProfileResponse {
+    Data(ProfileData),
+    Errors(Vec<ErrorResponseData>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -140,12 +163,17 @@ impl From<PlayerData> for PlayerKey {
     }
 }
 
-pub type TrackerAPI = CachedHttpApi<PlayerKey, ProfileData, ProfileResponse>;
+pub type TrackerAPI = CachedHttpApi<PlayerKey, Result<ProfileData, TRNError>, ProfileResponse>;
 
 pub fn new_tracker_api(context: egui::Context) -> TrackerAPI {
     CachedHttpApi::new(
         context,
         Box::new(|key| key.to_api_url()),
-        Arc::new(|r| Some(r.data)),
+        Arc::new(|r| {
+            Some(match r {
+                ProfileResponse::Data(d) => Ok(d),
+                ProfileResponse::Errors(mut e) => Err(e.swap_remove(0).into()),
+            })
+        }),
     )
 }
