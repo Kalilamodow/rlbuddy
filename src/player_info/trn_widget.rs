@@ -3,17 +3,18 @@ use std::str::FromStr;
 use eframe::egui;
 
 use crate::{
-    player_info::trn::{PlaylistSegment, ProfileData, Segment},
+    player_info::trn::{PlayerKey, PlaylistSegment, ProfileData, Segment},
     rocket_league::Rank,
 };
 
 pub struct TrackerWidget<'a> {
     profile: &'a ProfileData,
+    player: &'a PlayerKey,
 }
 
 impl<'a> TrackerWidget<'a> {
-    pub fn new(profile: &'a ProfileData) -> Self {
-        Self { profile }
+    pub fn new(profile: &'a ProfileData, player: &'a PlayerKey) -> Self {
+        Self { profile, player }
     }
 
     fn render_overview(&self, ui: &mut egui::Ui) {
@@ -110,6 +111,11 @@ impl<'a> egui::Widget for TrackerWidget<'a> {
             self.render_overview(ui);
             ui.add_space(8.0);
             self.render_playlists(ui);
+            ui.add_space(8.0);
+
+            if ui.button("Open in TRN").clicked() {
+                let _ = webbrowser::open(&self.player.trn_url());
+            }
         })
         .response
     }

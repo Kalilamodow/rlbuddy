@@ -134,7 +134,7 @@ pub struct PlayerKey {
 }
 
 impl PlayerKey {
-    fn to_api_url(&self) -> String {
+    fn trn_path(&self) -> String {
         let prefix = match self.platform {
             Platform::Xbox => "xbl",
             Platform::Epic => "epic",
@@ -144,9 +144,20 @@ impl PlayerKey {
             Platform::Bot => unreachable!("trying to get player key of bot"),
         };
 
+        format!("{prefix}/{}", urlencoding::encode(&self.platform_id))
+    }
+
+    fn api_url(&self) -> String {
         format!(
-            "https://api.tracker.gg/api/v2/rocket-league/standard/profile/{prefix}/{}",
-            urlencoding::encode(&self.platform_id)
+            "https://api.tracker.gg/api/v2/rocket-league/standard/profile/{}",
+            self.trn_path()
+        )
+    }
+
+    pub fn trn_url(&self) -> String {
+        format!(
+            "https://tracker.gg/rocket-league/profile/{}",
+            self.trn_path()
         )
     }
 }
@@ -168,7 +179,7 @@ pub type TrackerAPI = CachedHttpApi<PlayerKey, Result<ProfileData, TRNError>, Pr
 pub fn new_tracker_api(context: egui::Context) -> TrackerAPI {
     CachedHttpApi::new(
         context,
-        Box::new(|key| key.to_api_url()),
+        Box::new(|key| key.api_url()),
         Arc::new(|r| {
             Some(match r {
                 ProfileResponse::Data(d) => Ok(d),

@@ -75,7 +75,7 @@ impl egui::Widget for &mut PlayerInfoService {
                     if let Some(profile) = profile {
                         match profile.as_ref() {
                             Ok(profile) => {
-                                ui.add(TrackerWidget::new(profile));
+                                ui.add(TrackerWidget::new(profile, data));
                             }
                             Err(error) => {
                                 match error {
