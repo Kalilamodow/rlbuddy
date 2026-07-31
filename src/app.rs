@@ -173,23 +173,21 @@ impl RlBuddyApp {
         });
 
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(8.0, 8.0)));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+            egui::WindowLevel::AlwaysOnTop,
+        ));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-            egui::WindowLevel::AlwaysOnTop,
+            egui::WindowLevel::Normal,
         ));
     }
 
     fn hide(&self, ctx: &egui::Context) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
         if let Some(move_to) = self.prev_hide_pos {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(move_to));
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-            egui::WindowLevel::AlwaysOnBottom,
-        ));
-        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
-            egui::WindowLevel::Normal,
-        ));
     }
 }
 
