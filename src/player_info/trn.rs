@@ -71,9 +71,43 @@ pub struct PlaylistSegmentStats {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PlaylistAttributes {
+    pub playlist_id: i8,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaylistSegment {
     pub metadata: DefaultMetadata,
     pub stats: PlaylistSegmentStats,
+    pub attributes: PlaylistAttributes,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeakRatingStatMetadata {
+    pub name: String,
+    pub season: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PeakRatingStat {
+    #[serde(rename = "value")]
+    pub rating: i16,
+    pub metadata: PeakRatingStatMetadata,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeakRatingSegmentStats {
+    pub peak_rating: PeakRatingStat,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeakRatingSegment {
+    pub attributes: PlaylistAttributes,
+    pub stats: PeakRatingSegmentStats,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,7 +117,7 @@ pub enum Segment {
     Playlist(PlaylistSegment),
     PlaylistAverage,
     #[serde(rename = "peak-rating")]
-    PeakRating,
+    PeakRating(PeakRatingSegment),
 }
 
 #[derive(Debug, Deserialize)]

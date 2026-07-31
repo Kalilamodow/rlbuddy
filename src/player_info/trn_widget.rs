@@ -3,7 +3,7 @@ use std::str::FromStr;
 use eframe::egui;
 
 use crate::{
-    player_info::trn::{PlayerKey, PlaylistSegment, ProfileData, Segment},
+    player_info::trn::{PeakRatingSegment, PlayerKey, PlaylistSegment, ProfileData, Segment},
     rocket_league::Rank,
 };
 
@@ -61,6 +61,25 @@ impl<'a> TrackerWidget<'a> {
             })
             .collect();
 
+        let peak_ratings: Vec<&PeakRatingSegment> = self
+            .profile
+            .segments
+            .iter()
+            .filter_map(|s| {
+                if let Segment::PeakRating(ov) = s {
+                    Some(ov)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let find_peak_rating = |playlist_id: i8| {
+            peak_ratings
+                .iter()
+                .find(|r| r.attributes.playlist_id == playlist_id)
+        };
+
         egui::Grid::new(format!(
             "playlists for {}",
             self.profile.platform_info.platform_user_handle
@@ -95,8 +114,23 @@ impl<'a> TrackerWidget<'a> {
                             .fit_to_exact_size(egui::vec2(20.0, 20.0)),
                     )
                     .on_hover_text(format!("MMR: {}", peak_rating));
-                } else {
-                    ui.label("-");
+                } else if let Some(peak_rating) = find_peak_rating(playlist.attributes.playlist_id)
+                    && let Ok(mut peak_rank) =
+                        Rank::from_str(&peak_rating.stats.peak_rating.metadata.name)
+                {
+                    if matches!(peak_rank, Rank::Unranked) {
+                        peak_rank = Rank::estimate_from_mmr(peak_rating.stats.peak_rating.rating);
+                    }
+
+                    ui.add(
+                        egui::Image::new(peak_rank.to_image())
+                            .fit_to_exact_size(egui::vec2(20.0, 20.0)),
+                    )
+                    .on_hover_text(format!(
+                        "{}\nMMR: {}",
+                        peak_rating.stats.peak_rating.metadata.season,
+                        peak_rating.stats.peak_rating.rating
+                    ));
                 }
 
                 ui.end_row();
