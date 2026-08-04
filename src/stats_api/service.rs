@@ -178,17 +178,6 @@ enum ApiUpdate {
     Event(StatsApiEvent),
 }
 
-enum ConnectionState {
-    Connected(
-        serde_json::StreamDeserializer<
-            'static,
-            serde_json::de::IoRead<BufReader<TcpStream>>,
-            StatsApiEvent,
-        >,
-    ),
-    Disconnected,
-}
-
 pub struct StatsApi {
     event_rx: mpsc::Receiver<ApiUpdate>,
     local_player_id_event_emitted_yet: bool,
@@ -201,52 +190,41 @@ impl StatsApi {
         let (event_tx, event_rx) = mpsc::channel();
 
         thread::spawn(move || {
-            let mut connection = ConnectionState::Disconnected;
-
             loop {
-                match &mut connection {
-                    ConnectionState::Connected(conn) => {
-                        let Some(event) = conn.next() else {
-                            // disconnected
-                            connection = ConnectionState::Disconnected;
-                            if event_tx.send(ApiUpdate::Disconnected).is_err() {
-                                println!("[stats api] failed to send disconnected event, quitting");
-                                return;
-                            }
+                let connection = loop {
+                    match TcpStream::connect("127.0.0.1:49123".parse::<SocketAddr>().unwrap()) {
+                        Ok(stream) => break stream,
+                        Err(_) => thread::sleep(Duration::from_secs(5)),
+                    }
+                };
+
+                if event_tx.send(ApiUpdate::Connected).is_err() {
+                    println!("[stats api] failed to send conected event, quitting");
+                    return;
+                }
+
+                let reader = BufReader::new(connection);
+                let deserializer = serde_json::Deserializer::from_reader(reader);
+
+                for event in deserializer.into_iter() {
+                    let event = match event {
+                        Ok(e) => e,
+                        Err(error) => {
+                            println!("deserialize error: {error:?}");
                             continue;
-                        };
-
-                        let event = match event {
-                            Ok(e) => e,
-                            Err(error) => {
-                                println!("deserialize error: {error:?}");
-                                connection = ConnectionState::Disconnected;
-                                continue;
-                            }
-                        };
-
-                        if event_tx.send(ApiUpdate::Event(event)).is_err() {
-                            println!("[stats api] failed to send event, quitting");
-                            return;
                         }
-                    }
-                    ConnectionState::Disconnected => {
-                        if let Ok(stream) =
-                            TcpStream::connect("127.0.0.1:49123".parse::<SocketAddr>().unwrap())
-                        {
-                            let reader = BufReader::new(stream);
-                            let deserializer = serde_json::Deserializer::from_reader(reader);
-                            let iter = deserializer.into_iter::<StatsApiEvent>();
-                            connection = ConnectionState::Connected(iter);
+                    };
 
-                            if event_tx.send(ApiUpdate::Connected).is_err() {
-                                println!("[stats api] failed to send conected event, quitting");
-                                return;
-                            }
-                        } else {
-                            thread::sleep(Duration::from_secs(5));
-                        }
+                    if event_tx.send(ApiUpdate::Event(event)).is_err() {
+                        println!("[stats api] failed to send event, quitting");
+                        return;
                     }
+                }
+
+                // disconnected
+                if event_tx.send(ApiUpdate::Disconnected).is_err() {
+                    println!("[stats api] failed to send disconnected event, quitting");
+                    return;
                 }
             }
         });
