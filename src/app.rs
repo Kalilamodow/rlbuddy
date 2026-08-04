@@ -3,7 +3,7 @@ use crate::{
     discord,
     hotkey::{HotkeyService, HotkeySettings},
     matches::{CurrentMatchWidget, MatchesService, PastMatchesWidget},
-    player_info::{PlayerInfoService, PlayerInfoServiceCommand, PlayerSearchWidget},
+    player_info::{PlayerInfoService, PlayerSearchWidget},
     settings::SettingsWidget,
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
     stats_api::{RLEvent, StatsApi},
@@ -130,6 +130,7 @@ impl RlBuddyApp {
             matches_service.state_handle(),
         );
         let hotkey_service = HotkeyService::new(app_data.hotkey_settings);
+        let player_info_service = PlayerInfoService::new(ctx.clone());
 
         let current_transparency = Rc::new(RefCell::new(app_data.transparency));
         RlBuddyApp {
@@ -152,13 +153,19 @@ impl RlBuddyApp {
             ),
             spotify_service,
 
-            current_match: CurrentMatchWidget::new(matches_service.state_handle()),
-            past_matches: PastMatchesWidget::new(matches_service.state_handle()),
+            current_match: CurrentMatchWidget::new(
+                matches_service.state_handle(),
+                player_info_service.sender(),
+            ),
+            past_matches: PastMatchesWidget::new(
+                matches_service.state_handle(),
+                player_info_service.sender(),
+            ),
             matches_service,
 
             hotkey_service,
-            player_info_service: PlayerInfoService::new(ctx.clone()),
-            player_search_widget: PlayerSearchWidget::new(),
+            player_search_widget: PlayerSearchWidget::new(player_info_service.sender()),
+            player_info_service,
 
             auto_setup_widget: AutoSetupWidget::new(),
             open_panels: app_data.open_panels,
@@ -297,14 +304,7 @@ impl eframe::App for RlBuddyApp {
         self.spotify_service
             .update(&stats_api_latest, self.spotify_widget.get_command());
         self.matches_service.update(ctx, &stats_api_latest);
-
-        let open_player_info: Option<PlayerInfoServiceCommand> = self
-            .player_search_widget
-            .get_command()
-            .or_else(|| self.current_match.get_command())
-            .or_else(|| self.past_matches.get_command());
-
-        self.player_info_service.update(open_player_info);
+        self.player_info_service.update();
         self.discord_service.update();
 
         if let Some(event) = stats_api_latest.as_ref() {

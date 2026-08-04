@@ -1,6 +1,6 @@
 use super::{super::service::MatchesServiceState, match_renderer::MatchRenderer};
 use crate::{
-    common::ReadonlyStateHandle, matches::models::MatchPlayer,
+    common::{ReadonlyStateHandle, channel::Sender},
     player_info::PlayerInfoServiceCommand,
 };
 use eframe::egui;
@@ -9,22 +9,19 @@ use std::{collections::HashMap, time::SystemTime};
 pub struct PastMatchesWidget {
     state: ReadonlyStateHandle<MatchesServiceState>,
     open: HashMap<SystemTime, bool>,
-    wants_more_player_info: Option<MatchPlayer>,
+    player_info_sender: Sender<PlayerInfoServiceCommand>,
 }
 
 impl PastMatchesWidget {
-    pub fn new(state: ReadonlyStateHandle<MatchesServiceState>) -> Self {
+    pub fn new(
+        state: ReadonlyStateHandle<MatchesServiceState>,
+        player_info_sender: Sender<PlayerInfoServiceCommand>,
+    ) -> Self {
         PastMatchesWidget {
             state,
             open: HashMap::new(),
-            wants_more_player_info: None,
+            player_info_sender,
         }
-    }
-
-    pub fn get_command(&mut self) -> Option<PlayerInfoServiceCommand> {
-        self.wants_more_player_info
-            .take()
-            .map(|i| PlayerInfoServiceCommand::OpenPlayer(i.data))
     }
 }
 
@@ -37,7 +34,7 @@ impl egui::Widget for &mut PastMatchesWidget {
                         ui.add(MatchRenderer::new(
                             prev_match,
                             Some(&mut self.open.entry(prev_match.started_at).or_insert(false)),
-                            &mut self.wants_more_player_info,
+                            &self.player_info_sender,
                         ))
                     });
                 }

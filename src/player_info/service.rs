@@ -1,5 +1,6 @@
 use super::trn::{PlayerKey, TrackerAPI, new_tracker_api};
 use crate::{
+    common::channel::{Receiver, Sender},
     player_info::{trn::TRNError, trn_widget::TrackerWidget},
     rocket_league::Platform,
     stats_api::PlayerData,
@@ -20,6 +21,7 @@ struct OpenedPlayer {
 pub struct PlayerInfoService {
     trn: TrackerAPI,
     open_players: Vec<OpenedPlayer>,
+    command_receiver: Receiver<PlayerInfoServiceCommand>,
 }
 
 impl PlayerInfoService {
@@ -27,14 +29,21 @@ impl PlayerInfoService {
         Self {
             trn: new_tracker_api(context),
             open_players: Vec::new(),
+            command_receiver: Receiver::new(),
         }
     }
 
-    pub fn update(&mut self, command: Option<PlayerInfoServiceCommand>) {
-        let Some(command) = command else {
-            return;
-        };
+    pub fn update(&mut self) {
+        while let Some(command) = self.command_receiver.try_recv() {
+            self.process_command(command);
+        }
+    }
 
+    pub fn sender(&self) -> Sender<PlayerInfoServiceCommand> {
+        self.command_receiver.send()
+    }
+
+    fn process_command(&mut self, command: PlayerInfoServiceCommand) {
         match command {
             PlayerInfoServiceCommand::OpenPlayer(p) => self.open_players.push(OpenedPlayer {
                 data: p.into(),

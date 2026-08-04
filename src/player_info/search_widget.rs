@@ -1,28 +1,22 @@
 use eframe::egui;
 
-use crate::{player_info::PlayerInfoServiceCommand, rocket_league::Platform};
+use crate::{
+    common::channel::Sender, player_info::PlayerInfoServiceCommand, rocket_league::Platform,
+};
 
 pub struct PlayerSearchWidget {
     selected_platform: Platform,
     player_name: String,
-    command: Option<PlayerInfoServiceCommand>,
+    sender: Sender<PlayerInfoServiceCommand>,
 }
 
 impl PlayerSearchWidget {
-    pub fn new() -> Self {
+    pub fn new(sender: Sender<PlayerInfoServiceCommand>) -> Self {
         Self {
             player_name: String::new(),
             selected_platform: Platform::Epic,
-            command: None,
+            sender,
         }
-    }
-
-    pub fn get_command(&mut self) -> Option<PlayerInfoServiceCommand> {
-        self.command.take()
-    }
-
-    fn send(&mut self, command: PlayerInfoServiceCommand) {
-        self.command = Some(command);
     }
 }
 
@@ -53,7 +47,7 @@ impl egui::Widget for &mut PlayerSearchWidget {
             });
 
             if ui.button("Search").clicked() {
-                self.send(PlayerInfoServiceCommand::Open(
+                self.sender.send(PlayerInfoServiceCommand::Open(
                     self.selected_platform.clone(),
                     self.player_name.clone(),
                 ));

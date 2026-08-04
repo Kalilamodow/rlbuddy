@@ -1,4 +1,6 @@
 use crate::{
+    common::channel::Sender,
+    player_info::PlayerInfoServiceCommand,
     rocket_league::{Platform, Playlist, Rank, Team},
     stats_api::TeamScores,
 };
@@ -16,19 +18,19 @@ use std::time::{Duration, SystemTime};
 pub struct MatchRenderer<'a> {
     match_info: &'a MatchInfo,
     is_open: Option<&'a mut bool>,
-    wants_more_player_info: &'a mut Option<MatchPlayer>,
+    player_info_sender: &'a Sender<PlayerInfoServiceCommand>,
 }
 
 impl<'a> MatchRenderer<'a> {
     pub fn new(
         match_info: &'a MatchInfo,
         is_open: Option<&'a mut bool>,
-        wants_more_player_info: &'a mut Option<MatchPlayer>,
+        player_info_sender: &'a Sender<PlayerInfoServiceCommand>,
     ) -> MatchRenderer<'a> {
         MatchRenderer {
             match_info,
             is_open,
-            wants_more_player_info,
+            player_info_sender,
         }
     }
 
@@ -134,7 +136,10 @@ impl<'a> MatchRenderer<'a> {
 
         if !matches!(match_player.data.platform, Platform::Bot) {
             if ui.button("More").clicked() {
-                *self.wants_more_player_info = Some(match_player.clone());
+                self.player_info_sender
+                    .send(PlayerInfoServiceCommand::OpenPlayer(
+                        match_player.data.clone(),
+                    ));
             }
         }
 

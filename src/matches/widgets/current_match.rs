@@ -1,5 +1,5 @@
 use crate::{
-    common::ReadonlyStateHandle, matches::models::MatchPlayer,
+    common::{ReadonlyStateHandle, channel::Sender},
     player_info::PlayerInfoServiceCommand,
 };
 
@@ -8,21 +8,18 @@ use eframe::egui;
 
 pub struct CurrentMatchWidget {
     state: ReadonlyStateHandle<MatchesServiceState>,
-    wants_more_player_info: Option<MatchPlayer>,
+    player_info_sender: Sender<PlayerInfoServiceCommand>,
 }
 
 impl CurrentMatchWidget {
-    pub fn new(state: ReadonlyStateHandle<MatchesServiceState>) -> Self {
+    pub fn new(
+        state: ReadonlyStateHandle<MatchesServiceState>,
+        player_info_sender: Sender<PlayerInfoServiceCommand>,
+    ) -> Self {
         CurrentMatchWidget {
             state,
-            wants_more_player_info: None,
+            player_info_sender,
         }
-    }
-
-    pub fn get_command(&mut self) -> Option<PlayerInfoServiceCommand> {
-        self.wants_more_player_info
-            .take()
-            .map(|i| PlayerInfoServiceCommand::OpenPlayer(i.data))
     }
 }
 
@@ -41,7 +38,7 @@ impl egui::Widget for &mut CurrentMatchWidget {
                         ui.add(MatchRenderer::new(
                             current_match,
                             None,
-                            &mut self.wants_more_player_info,
+                            &self.player_info_sender,
                         ));
                     }
                 }
