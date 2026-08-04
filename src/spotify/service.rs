@@ -3,6 +3,7 @@ use crate::{
     common::{
         ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle,
         channel::{Receiver, Sender},
+        eventsource::EventReceiver,
     },
     spotify::client::SpotifyUri,
     stats_api::RLEvent,
@@ -52,10 +53,11 @@ pub struct SpotifyService {
     settings: ReadWriteStateHandle<SpotifySettings>,
     state: ThreadedReadWriteStateHandle<SpotifyServiceState>,
     command_receiver: Receiver<SpotifyCommand>,
+    stats_api: EventReceiver<RLEvent>,
 }
 
 impl SpotifyService {
-    pub fn new(savedata: Option<SpotifySavedata>) -> Self {
+    pub fn new(savedata: Option<SpotifySavedata>, stats_api: EventReceiver<RLEvent>) -> Self {
         let savedata = savedata.unwrap_or_default();
 
         let client: Arc<RwLock<Option<SpotifyClient>>> = Arc::default();
@@ -69,6 +71,7 @@ impl SpotifyService {
             }),
             client,
             command_receiver: Receiver::new(),
+            stats_api,
         };
 
         if let Some(credentials) = savedata.credentials {
@@ -100,7 +103,7 @@ impl SpotifyService {
         });
     }
 
-    pub fn update(&mut self, event: &Arc<Option<RLEvent>>) {
+    pub fn update(&mut self) {
         while let Some(command) = self.command_receiver.try_recv() {
             self.handle_command(command);
         }
@@ -108,10 +111,10 @@ impl SpotifyService {
         {
             let settings = self.settings.read();
             if settings.pause_during_replay
-                && let Some(event) = event.as_ref()
+                && let Some(event) = self.stats_api.try_recv()
             {
                 drop(settings);
-                match event {
+                match *event {
                     RLEvent::ReplayStart | RLEvent::MatchOver(_) => {
                         self.handle_command(SpotifyCommand::Pause);
                     }

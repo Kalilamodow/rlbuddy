@@ -1,15 +1,12 @@
-use std::sync::Arc;
-use std::time::SystemTime;
-
-use eframe::egui;
-
+use super::apis::{NameAPI, RankAPI};
+use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
+use crate::common::eventsource::EventReceiver;
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
 use crate::matches::apis::{EpicIdAPI, new_epic_id_api, new_name_api, new_rank_api};
 use crate::rocket_league::{Platform, Team};
 use crate::stats_api::{MatchUpdate, RLEvent};
-
-use super::apis::{NameAPI, RankAPI};
-use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
+use eframe::egui;
+use std::time::SystemTime;
 
 #[derive(Debug, Default)]
 pub struct MatchesServiceState {
@@ -19,7 +16,8 @@ pub struct MatchesServiceState {
 
 pub struct MatchesService {
     state: ReadWriteStateHandle<MatchesServiceState>,
-
+    stats_api: EventReceiver<RLEvent>,
+    ctx: egui::Context,
     local_player_id: Option<String>,
     rank_api: RankAPI,
     names_api: NameAPI,
@@ -27,9 +25,11 @@ pub struct MatchesService {
 }
 
 impl MatchesService {
-    pub fn new(ctx: &egui::Context) -> Self {
+    pub fn new(ctx: &egui::Context, stats_api: EventReceiver<RLEvent>) -> Self {
         MatchesService {
             state: ReadWriteStateHandle::default(),
+            stats_api,
+            ctx: ctx.clone(),
             local_player_id: None,
             rank_api: new_rank_api(ctx.clone()),
             names_api: new_name_api(ctx.clone()),
@@ -116,61 +116,59 @@ impl MatchesService {
             .sort_by_key(|p| p.data.team != current_match.our_team);
     }
 
-    pub fn update(&mut self, ctx: &egui::Context, stats_api_event: &Arc<Option<RLEvent>>) {
-        let Some(event) = stats_api_event.as_ref() else {
-            return;
-        };
+    pub fn update(&mut self) {
+        while let Some(event) = self.stats_api.try_recv() {
+            let mut state = self.state.write();
+            match *event {
+                RLEvent::MatchStart => {
+                    state.current_match = Some(MatchInfo::default());
+                    self.ctx.request_repaint();
+                }
+                RLEvent::MatchOver(winner) => {
+                    if let Some(current_match) = state.current_match.as_mut() {
+                        if current_match.players.len() <= 1 {
+                            return;
+                        }
 
-        let mut state = self.state.write();
-        match event {
-            RLEvent::MatchStart => {
-                state.current_match = Some(MatchInfo::default());
-                ctx.request_repaint();
-            }
-            RLEvent::MatchOver(winner) => {
-                if let Some(current_match) = state.current_match.as_mut() {
+                        current_match.finish = Some(MatchOverInfo {
+                            timestamp: SystemTime::now(),
+                            winner: Some(winner),
+                        });
+                    }
+                    self.ctx.request_repaint();
+                }
+                RLEvent::MatchLeft => {
+                    let Some(mut current_match) = state.current_match.take() else {
+                        return;
+                    };
+
+                    self.rank_api
+                        .invalidate(current_match.players.iter().map(|p| &p.data.platform_id));
+
                     if current_match.players.len() <= 1 {
                         return;
                     }
 
-                    current_match.finish = Some(MatchOverInfo {
-                        timestamp: SystemTime::now(),
-                        winner: Some(*winner),
-                    });
+                    if current_match.finish.is_none() {
+                        current_match.finish = Some(MatchOverInfo {
+                            timestamp: SystemTime::now(),
+                            winner: current_match.score.guess_winner(),
+                        });
+                    }
+
+                    state.prev_matches.push(current_match);
+                    self.ctx.request_repaint();
                 }
-                ctx.request_repaint();
-            }
-            RLEvent::MatchLeft => {
-                let Some(mut current_match) = state.current_match.take() else {
-                    return;
-                };
-
-                self.rank_api
-                    .invalidate(current_match.players.iter().map(|p| &p.data.platform_id));
-
-                if current_match.players.len() <= 1 {
-                    return;
+                RLEvent::Update(ref update) => {
+                    drop(state);
+                    self.update_state(update.clone());
+                    self.ctx.request_repaint();
                 }
-
-                if current_match.finish.is_none() {
-                    current_match.finish = Some(MatchOverInfo {
-                        timestamp: SystemTime::now(),
-                        winner: current_match.score.guess_winner(),
-                    });
+                RLEvent::OurPlayerId(ref id) => {
+                    self.local_player_id = Some(id.clone());
                 }
-
-                state.prev_matches.push(current_match);
-                ctx.request_repaint();
+                _ => {}
             }
-            RLEvent::Update(update) => {
-                drop(state);
-                self.update_state(update.clone());
-                ctx.request_repaint();
-            }
-            RLEvent::OurPlayerId(id) => {
-                self.local_player_id = Some(id.clone());
-            }
-            _ => {}
         }
     }
 }

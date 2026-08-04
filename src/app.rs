@@ -1,5 +1,6 @@
 use crate::{
     auto_setup::AutoSetupWidget,
+    common::eventsource::EventReceiver,
     discord,
     hotkey::{HotkeyService, HotkeySettings},
     matches::{CurrentMatchWidget, MatchesService, PastMatchesWidget},
@@ -8,11 +9,10 @@ use crate::{
     spotify::{SpotifySavedata, SpotifyService, SpotifyWidget},
     stats_api::{RLEvent, StatsApi},
 };
-
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 enum Panel {
@@ -89,7 +89,8 @@ pub struct RlBuddyApp {
     prev_hide_pos: Option<egui::Pos2>,
     open_panels: Vec<Panel>,
 
-    stats_api: StatsApi,
+    stats_api_events: EventReceiver<RLEvent>,
+    stats_api_service: StatsApi,
 
     spotify_service: SpotifyService,
     spotify_widget: SpotifyWidget,
@@ -122,9 +123,10 @@ impl RlBuddyApp {
             AppData::default()
         };
 
-        let stats_api = StatsApi::new();
-        let matches_service = MatchesService::new(&ctx);
-        let spotify_service = SpotifyService::new(app_data.spotify_data);
+        let mut stats_api_service = StatsApi::new();
+        let matches_service = MatchesService::new(&ctx, stats_api_service.subscribe());
+        let spotify_service =
+            SpotifyService::new(app_data.spotify_data, stats_api_service.subscribe());
         let discord_service = discord::DiscordService::new(
             app_data.rich_presence_settings,
             matches_service.state_handle(),
@@ -139,7 +141,8 @@ impl RlBuddyApp {
             current_transparency,
             prev_hide_pos: None,
 
-            stats_api,
+            stats_api_events: stats_api_service.subscribe(),
+            stats_api_service,
 
             discord_widget: discord::DiscordWidget::new(
                 discord_service.settings_handle(),
@@ -301,14 +304,14 @@ impl eframe::App for RlBuddyApp {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let stats_api_latest = Arc::new(self.stats_api.update());
-        self.spotify_service.update(&stats_api_latest);
-        self.matches_service.update(ctx, &stats_api_latest);
+        self.stats_api_service.update();
+        self.matches_service.update();
+        self.spotify_service.update();
         self.player_info_service.update();
         self.discord_service.update();
 
-        if let Some(event) = stats_api_latest.as_ref() {
-            match event {
+        while let Some(event) = self.stats_api_events.try_recv() {
+            match *event {
                 RLEvent::Connected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                     "rlbuddy (connected)".to_string(),
                 )),

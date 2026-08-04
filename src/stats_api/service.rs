@@ -10,7 +10,10 @@ use std::{
     time::Duration,
 };
 
-use crate::rocket_league::{Platform, Team, asset_to_arena};
+use crate::{
+    common::eventsource::{EventReceiver, EventSource},
+    rocket_league::{Platform, Team, asset_to_arena},
+};
 
 #[derive(Debug, Deserialize)]
 struct StatsApiEvent {
@@ -190,6 +193,7 @@ pub struct StatsApi {
     event_rx: mpsc::Receiver<ApiUpdate>,
     local_player_id_event_emitted_yet: bool,
     match_created_event_happened: bool,
+    publisher: EventSource<RLEvent>,
 }
 
 impl StatsApi {
@@ -251,18 +255,25 @@ impl StatsApi {
             event_rx,
             local_player_id_event_emitted_yet: false,
             match_created_event_happened: false,
+            publisher: EventSource::new(),
         }
     }
 
-    pub fn update(&mut self) -> Option<RLEvent> {
-        let Ok(event) = self.event_rx.try_recv() else {
-            return None;
-        };
+    pub fn subscribe(&mut self) -> EventReceiver<RLEvent> {
+        self.publisher.subscribe()
+    }
 
-        match event {
-            ApiUpdate::Connected => Some(RLEvent::Connected),
-            ApiUpdate::Disconnected => Some(RLEvent::Disconnected),
-            ApiUpdate::Event(evt) => self.on_stats_api_event(&evt),
+    pub fn update(&mut self) {
+        while let Ok(event) = self.event_rx.try_recv() {
+            let rl_event = match event {
+                ApiUpdate::Connected => Some(RLEvent::Connected),
+                ApiUpdate::Disconnected => Some(RLEvent::Disconnected),
+                ApiUpdate::Event(evt) => self.on_stats_api_event(&evt),
+            };
+
+            if let Some(e) = rl_event {
+                self.publisher.publish(e);
+            }
         }
     }
 

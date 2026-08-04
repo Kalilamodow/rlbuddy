@@ -5,3 +5,4 @@ mod state_handle;
 pub use state_handle::*;
 
 pub mod channel;
+pub mod eventsource;

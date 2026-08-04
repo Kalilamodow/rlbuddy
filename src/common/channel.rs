@@ -9,6 +9,10 @@ impl<T> Sender<T> {
     pub fn send(&self, item: T) {
         self.items.borrow_mut().push_back(item);
     }
+
+    pub(super) fn is_alive(&self) -> bool {
+        Rc::strong_count(&self.items) > 1
+    }
 }
 
 pub struct Receiver<T> {
