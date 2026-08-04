@@ -109,11 +109,12 @@ impl SpotifyService {
         }
 
         {
-            let settings = self.settings.read();
-            if settings.pause_during_replay
-                && let Some(event) = self.stats_api.try_recv()
-            {
-                drop(settings);
+            let should_pause = self.settings.read().pause_during_replay;
+            while let Some(event) = self.stats_api.try_recv() {
+                if !should_pause {
+                    continue;
+                }
+
                 match *event {
                     RLEvent::ReplayStart | RLEvent::MatchOver(_) => {
                         self.handle_command(SpotifyCommand::Pause);
