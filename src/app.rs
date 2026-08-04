@@ -150,6 +150,7 @@ impl RlBuddyApp {
             spotify_widget: SpotifyWidget::new(
                 spotify_service.state_handle(),
                 spotify_service.settings_handle(),
+                spotify_service.sender(),
             ),
             spotify_service,
 
@@ -301,8 +302,7 @@ impl eframe::App for RlBuddyApp {
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let stats_api_latest = Arc::new(self.stats_api.update());
-        self.spotify_service
-            .update(&stats_api_latest, self.spotify_widget.get_command());
+        self.spotify_service.update(&stats_api_latest);
         self.matches_service.update(ctx, &stats_api_latest);
         self.player_info_service.update();
         self.discord_service.update();

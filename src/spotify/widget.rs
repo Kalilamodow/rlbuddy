@@ -2,7 +2,7 @@ use super::service::{
     SPOTIFY_REFRESH_INTERVAL, SpotifyCommand, SpotifyServiceState, SpotifySettings,
 };
 use crate::{
-    common::{ReadWriteStateHandle, ThreadedReadonlyStateHandle},
+    common::{ReadWriteStateHandle, ThreadedReadonlyStateHandle, channel::Sender},
     spotify::client::SpotifyUri,
 };
 use eframe::egui::{self, TextBuffer};
@@ -11,7 +11,7 @@ use std::time::SystemTime;
 pub struct SpotifyWidget {
     state: ThreadedReadonlyStateHandle<SpotifyServiceState>,
     settings: ReadWriteStateHandle<SpotifySettings>,
-    send_command: Option<SpotifyCommand>,
+    commander: Sender<SpotifyCommand>,
     is_setting_up: bool,
     inputted_client_id: String,
 }
@@ -20,18 +20,15 @@ impl SpotifyWidget {
     pub fn new(
         state_handle: ThreadedReadonlyStateHandle<SpotifyServiceState>,
         settings_handle: ReadWriteStateHandle<SpotifySettings>,
+        commander: Sender<SpotifyCommand>,
     ) -> SpotifyWidget {
         SpotifyWidget {
             state: state_handle,
             settings: settings_handle,
-            send_command: None,
+            commander,
             is_setting_up: false,
             inputted_client_id: String::new(),
         }
-    }
-
-    pub fn get_command(&mut self) -> Option<SpotifyCommand> {
-        self.send_command.take()
     }
 
     fn render_time_till_next_poll(&self, ui: &mut egui::Ui) {
@@ -82,10 +79,10 @@ impl SpotifyWidget {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if ui.button("Next").clicked() {
-                        self.send(SpotifyCommand::Skip);
+                        self.commander.send(SpotifyCommand::Skip);
                     }
                     if ui.button("Back").clicked() {
-                        self.send(SpotifyCommand::Prev);
+                        self.commander.send(SpotifyCommand::Prev);
                     }
                 });
 
@@ -101,7 +98,8 @@ impl SpotifyWidget {
 
                         if let Some(song) = new_song {
                             let context_uri = self.state.read().playback_state.context.clone();
-                            self.send(SpotifyCommand::PlaySong(song, context_uri));
+                            self.commander
+                                .send(SpotifyCommand::PlaySong(song, context_uri));
                         }
                     });
 
@@ -153,17 +151,13 @@ impl SpotifyWidget {
         {
             self.is_setting_up = false;
             let client_id = self.inputted_client_id.take();
-            self.send(SpotifyCommand::Login(client_id));
+            self.commander.send(SpotifyCommand::Login(client_id));
         }
 
         ui.add_space(8.0);
         if ui.small_button("Cancel setup").clicked() {
             self.is_setting_up = false;
         }
-    }
-
-    fn send(&mut self, cmd: SpotifyCommand) {
-        self.send_command = Some(cmd);
     }
 }
 
@@ -200,7 +194,7 @@ impl egui::Widget for &mut SpotifyWidget {
             });
 
             if ui.button("Unlink").clicked() {
-                self.send(SpotifyCommand::Logout);
+                self.commander.send(SpotifyCommand::Logout);
             }
         })
         .response

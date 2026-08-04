@@ -1,6 +1,9 @@
 use super::client::{PlaybackState, SavedCredentials, SpotifyClient};
 use crate::{
-    common::{ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle},
+    common::{
+        ReadWriteStateHandle, ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle,
+        channel::{Receiver, Sender},
+    },
     spotify::client::SpotifyUri,
     stats_api::RLEvent,
 };
@@ -48,6 +51,7 @@ pub struct SpotifyService {
     client: Arc<RwLock<Option<SpotifyClient>>>,
     settings: ReadWriteStateHandle<SpotifySettings>,
     state: ThreadedReadWriteStateHandle<SpotifyServiceState>,
+    command_receiver: Receiver<SpotifyCommand>,
 }
 
 impl SpotifyService {
@@ -64,6 +68,7 @@ impl SpotifyService {
                 is_updating: false,
             }),
             client,
+            command_receiver: Receiver::new(),
         };
 
         if let Some(credentials) = savedata.credentials {
@@ -71,6 +76,10 @@ impl SpotifyService {
         }
 
         svc
+    }
+
+    pub fn sender(&self) -> Sender<SpotifyCommand> {
+        self.command_receiver.send()
     }
 
     fn set_client<F>(&self, new_client: F)
@@ -91,8 +100,8 @@ impl SpotifyService {
         });
     }
 
-    pub fn update(&mut self, event: &Arc<Option<RLEvent>>, command: Option<SpotifyCommand>) {
-        if let Some(command) = command {
+    pub fn update(&mut self, event: &Arc<Option<RLEvent>>) {
+        while let Some(command) = self.command_receiver.try_recv() {
             self.handle_command(command);
         }
 
