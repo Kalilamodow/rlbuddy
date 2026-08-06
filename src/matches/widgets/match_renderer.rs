@@ -36,6 +36,10 @@ impl<'a> MatchRenderer<'a> {
         ui.horizontal(|ui| {
             if let Some(playlist) = self.match_info.playlist {
                 ui.label(format!("{}", playlist));
+
+                if playlist.is_singleplayer() {
+                    return;
+                }
             }
 
             if let Some(finished) = &self.match_info.finish {

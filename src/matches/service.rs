@@ -3,7 +3,7 @@ use super::models::{MatchInfo, MatchOverInfo, MatchPlayer};
 use crate::common::eventsource::EventReceiver;
 use crate::common::{ReadWriteStateHandle, ReadonlyStateHandle};
 use crate::matches::apis::{EpicIdAPI, new_epic_id_api, new_name_api, new_rank_api};
-use crate::rocket_league::{Platform, Team};
+use crate::rocket_league::{Platform, Playlist, Team};
 use crate::stats_api::{MatchUpdate, RLEvent};
 use eframe::egui;
 use std::time::SystemTime;
@@ -146,7 +146,11 @@ impl MatchesService {
                     self.rank_api
                         .invalidate(current_match.players.iter().map(|p| &p.data.platform_id));
 
-                    if current_match.players.len() <= 1 {
+                    if current_match
+                        .playlist
+                        .map(Playlist::is_singleplayer)
+                        .unwrap_or(true)
+                    {
                         return;
                     }
 
