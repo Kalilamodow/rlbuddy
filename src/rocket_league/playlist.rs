@@ -159,13 +159,11 @@ impl Playlist {
         }
     }
 
-    pub fn is_real_match(self) -> bool {
-        match self {
-            Self::Training | Self::Workshop | Self::CustomTraining | Self::CustomTrainingEditor => {
-                false
-            }
-            _ => true,
-        }
+    pub fn is_singleplayer(self) -> bool {
+        matches!(
+            self,
+            Self::Training | Self::Workshop | Self::CustomTraining | Self::CustomTrainingEditor
+        )
     }
 }
 
