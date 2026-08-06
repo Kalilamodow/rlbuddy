@@ -100,26 +100,22 @@ pub struct HotkeySettings {
 
 pub struct HotkeyService {
     settings: ThreadedReadWriteStateHandle<HotkeySettings>,
-    rx: mpsc::Receiver<bool>,
 }
 
 impl HotkeyService {
-    pub fn new(settings: Option<HotkeySettings>) -> Self {
+    pub fn new(overlay_tx: mpsc::Sender<bool>, settings: Option<HotkeySettings>) -> Self {
         let settings = ThreadedReadWriteStateHandle::new(settings.unwrap_or_default());
-        let (tx, rx) = mpsc::channel();
 
         let settings_for_manager = settings.clone();
         thread::spawn(move || {
-            let manager =
-                InputManager::new(tx, ThreadedReadonlyStateHandle::over(&settings_for_manager));
+            let manager = InputManager::new(
+                overlay_tx,
+                ThreadedReadonlyStateHandle::over(&settings_for_manager),
+            );
             manager.listen();
         });
 
-        HotkeyService { settings, rx }
-    }
-
-    pub fn update(&self) -> Option<bool> {
-        self.rx.try_recv().ok()
+        HotkeyService { settings }
     }
 
     pub fn settings_handle(&self) -> ThreadedReadWriteStateHandle<HotkeySettings> {

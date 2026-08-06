@@ -11,8 +11,8 @@ use crate::{
 };
 use eframe::egui;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, thread};
+use std::{sync::mpsc, time::Duration};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 enum Panel {
@@ -86,6 +86,8 @@ impl Default for AppData {
 pub struct RlBuddyApp {
     current_transparency: Rc<RefCell<u8>>,
 
+    overlay_tx: mpsc::Sender<bool>,
+    overlay_rx: mpsc::Receiver<bool>,
     prev_hide_pos: Option<egui::Pos2>,
     open_panels: Vec<Panel>,
 
@@ -123,6 +125,7 @@ impl RlBuddyApp {
             AppData::default()
         };
 
+        let (overlay_tx, overlay_rx) = mpsc::channel();
         let mut stats_api_service = StatsApi::new();
         let matches_service = MatchesService::new(&ctx, stats_api_service.subscribe());
         let spotify_service =
@@ -131,13 +134,15 @@ impl RlBuddyApp {
             app_data.rich_presence_settings,
             matches_service.state_handle(),
         );
-        let hotkey_service = HotkeyService::new(app_data.hotkey_settings);
+        let hotkey_service = HotkeyService::new(overlay_tx.clone(), app_data.hotkey_settings);
         let player_info_service = PlayerInfoService::new(ctx.clone());
 
         let current_transparency = Rc::new(RefCell::new(app_data.transparency));
         RlBuddyApp {
             settings_widget: SettingsWidget::new(&hotkey_service, Rc::clone(&current_transparency)),
 
+            overlay_tx,
+            overlay_rx,
             current_transparency,
             prev_hide_pos: None,
 
@@ -199,6 +204,16 @@ impl RlBuddyApp {
         if let Some(move_to) = self.prev_hide_pos {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(move_to));
         }
+    }
+
+    fn pop_up(&self) {
+        self.overlay_tx.send(true).unwrap();
+        let tx = self.overlay_tx.clone();
+
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(3));
+            tx.send(false).unwrap();
+        });
     }
 }
 
@@ -318,11 +333,12 @@ impl eframe::App for RlBuddyApp {
                 RLEvent::Disconnected => ctx.send_viewport_cmd(egui::ViewportCommand::Title(
                     "rlbuddy (not connected".to_string(),
                 )),
+                RLEvent::MatchStart => self.pop_up(),
                 _ => {}
             }
         }
 
-        if let Some(should_overlay) = self.hotkey_service.update() {
+        if let Some(should_overlay) = self.overlay_rx.try_iter().last() {
             if should_overlay {
                 self.show(ctx);
             } else {
