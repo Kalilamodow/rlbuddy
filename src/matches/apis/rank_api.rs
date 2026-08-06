@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eframe::egui;
-use num_enum::TryFromPrimitive as _;
+use num_enum::{TryFromPrimitive as _, TryFromPrimitiveError};
 use serde::Deserialize;
 
 use crate::{
@@ -33,13 +33,17 @@ pub struct PlaylistSkillInformation {
     pub rank_is_estimate: bool,
 }
 
-impl From<GetPlayerSkillsPlaylistData> for PlaylistSkillInformation {
-    fn from(value: GetPlayerSkillsPlaylistData) -> Self {
+impl PlaylistSkillInformation {
+    fn try_from_data(
+        value: GetPlayerSkillsPlaylistData,
+    ) -> Result<Self, TryFromPrimitiveError<Playlist>> {
         let actual_rank = Rank::try_from_primitive(value.tier).expect("Failed to convert rank");
         let use_estimate = actual_rank == Rank::Unranked;
 
-        Self {
-            playlist: Playlist::try_from_primitive(value.id).unwrap(),
+        let playlist = Playlist::try_from_primitive(value.id)?;
+
+        Ok(Self {
+            playlist,
             rank: if use_estimate {
                 Rank::estimate_from_mmr(value.mmr)
             } else {
@@ -48,7 +52,7 @@ impl From<GetPlayerSkillsPlaylistData> for PlaylistSkillInformation {
             div: Division::from(value.division),
             mmr: value.mmr,
             rank_is_estimate: use_estimate,
-        }
+        })
     }
 }
 
@@ -69,7 +73,7 @@ impl From<GetPlayerSkillsResponse> for PlayerSkillInformation {
             playlists: value
                 .playlists
                 .into_iter()
-                .map(PlaylistSkillInformation::from)
+                .filter_map(|v| PlaylistSkillInformation::try_from_data(v).ok())
                 .collect(),
         }
     }
