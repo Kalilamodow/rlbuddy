@@ -34,6 +34,10 @@ impl<'a> MatchRenderer<'a> {
 
     fn render_header(&mut self, ui: &mut egui::Ui) -> egui::Response {
         ui.horizontal(|ui| {
+            if let Some(playlist) = self.match_info.playlist {
+                ui.label(format!("{}", playlist));
+            }
+
             if let Some(finished) = &self.match_info.finish {
                 if let Some(winner) = finished.winner.or_else(|| {
                     match self
