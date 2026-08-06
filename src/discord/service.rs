@@ -11,38 +11,28 @@ use serde::{Deserialize, Serialize};
 pub struct MatchData {
     pub team_score: u8,
     pub opp_score: u8,
-    pub playlist: Option<Playlist>,
+    pub playlist: Playlist,
     pub arena: &'static str,
     pub state: MatchState,
 }
 
 impl MatchData {
     pub fn generate_presence(&self, include_score: bool) -> PresenceData {
-        let mut details = format!(
-            "{} in {}",
-            self.playlist
-                .as_ref()
-                .map(ToString::to_string)
-                .as_deref()
-                .unwrap_or("Playing"),
-            self.arena
-        );
+        let mut details = format!("{} in {}", self.playlist, self.arena);
+        let mut state: Option<String> = None;
 
-        if include_score {
+        if self.playlist.is_real_match() && include_score {
             details += format!(" | {}-{}", self.team_score, self.opp_score).as_str();
+            state = Some(self.state.as_str().to_owned());
         }
 
-        PresenceData {
-            details,
-            state: Some(self.state.as_str().to_owned()),
-        }
+        PresenceData { details, state }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GameState {
     Lobby,
-    Training,
     InGame(MatchData),
 }
 
@@ -51,10 +41,6 @@ impl GameState {
         match &self {
             GameState::Lobby => PresenceData {
                 details: "Main menu".to_owned(),
-                state: None,
-            },
-            GameState::Training => PresenceData {
-                details: "In training".to_owned(),
                 state: None,
             },
             GameState::InGame(game) => game.generate_presence(show_score),
@@ -97,26 +83,23 @@ impl DiscordService {
     }
 
     pub fn update(&mut self) {
-        self.current = match &self.matches_handle.read().current_match {
-            Some(current_match) => match current_match.players.len() {
-                0 => GameState::Lobby,
-                1 => GameState::Training,
-                player_count => {
-                    let (our_score, their_score) = match current_match.our_team {
-                        Team::Blue => (current_match.score.blue, current_match.score.orange),
-                        Team::Orange => (current_match.score.orange, current_match.score.blue),
-                    };
+        self.current = if let Some(current_match) = &self.matches_handle.read().current_match
+            && let Some(playlist) = current_match.playlist
+        {
+            let (our_score, their_score) = match current_match.our_team {
+                Team::Blue => (current_match.score.blue, current_match.score.orange),
+                Team::Orange => (current_match.score.orange, current_match.score.blue),
+            };
 
-                    GameState::InGame(MatchData {
-                        team_score: our_score,
-                        opp_score: their_score,
-                        playlist: Playlist::from_player_count(player_count),
-                        arena: current_match.arena.unwrap_or_default(),
-                        state: current_match.state.clone(),
-                    })
-                }
-            },
-            None => GameState::Lobby,
+            GameState::InGame(MatchData {
+                team_score: our_score,
+                opp_score: their_score,
+                playlist,
+                arena: current_match.arena.unwrap_or_default(),
+                state: current_match.state.clone(),
+            })
+        } else {
+            GameState::Lobby
         };
 
         self.send_current();

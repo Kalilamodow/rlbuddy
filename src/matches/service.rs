@@ -53,6 +53,7 @@ impl MatchesService {
         };
 
         current_match.arena = Some(updated.arena);
+        current_match.playlist = updated.playlist;
         current_match.state = updated.state;
         current_match.max_active_players =
             current_match.max_active_players.max(updated.players.len());

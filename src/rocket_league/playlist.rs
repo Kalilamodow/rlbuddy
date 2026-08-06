@@ -1,36 +1,176 @@
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::fmt;
 
-use num_enum::IntoPrimitive;
-
-#[derive(Debug, Clone, IntoPrimitive, PartialEq, Eq)]
+// combination of data scraped from PsyNet and https://bakkesplugins.com/wiki/bakkesmod-sdk/code-snippets/playlist-id
+#[derive(Debug, Copy, Clone, IntoPrimitive, TryFromPrimitive, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Playlist {
-    Ones = 10,
-    Twos = 11,
-    Threes = 13,
+    Casual = 0,
+    Duel = 1,
+    Doubles = 2,
+    Standard = 3,
+    Quads = 4,
+    PrivateMatch = 6,
+    Season = 7,
+    Exhibition = 8,
+    Training = 9,
+    RankedSoloDuel = 10,
+    RankedTeamDoubles = 11,
+    RankedStandard = 13,
+    SnowDayPromotion = 15,
+    Experimental = 16,
+    BasketballDoubles = 17,
+    Rumble = 18,
+    Workshop = 19,
+    CustomTrainingEditor = 20,
+    CustomTraining = 21,
+    Tournament = 22,
+    Breakout = 23,
+    LocalMatch = 24,
+    FaceIt = 26,
+    RankedBasketballDoubles = 27,
+    RankedRumble = 28,
+    RankedBreakout = 29,
+    RankedSnowDay = 30,
+    HauntedBall = 31,
+    BeachBall = 32,
+    Rugby = 33,
+    AutoTournament = 34,
+    RocketLabs = 35,
+    RumShot = 37,
+    GodBall = 38,
+    BoomerBall = 41,
+    GodBallDoubles = 43,
+    SpecialSnowDay = 44,
+    Football = 46,
+    Cubic = 47,
+    TacticalRumble = 48,
+    SpringLoaded = 49,
+    SpeedDemon = 50,
+    RumbleBM = 52,
+    Knockout = 54,
+    ThirdWheel = 55,
+    RankedQuads = 61,
+    MagnusFutball = 62,
+    RankedHeatseekerDoubles = 63,
+    GodBallSpooky = 64,
+    GodBallHaunted = 65,
+    GodBallRicochet = 66,
+    CubicSpooky = 67,
+    GForceFrenzy = 68,
+    RumShotDoubles = 70,
+    Territory = 72,
+    OnlineFreeplay = 73,
+    TerritoryDoubles = 74,
+    GodballTerritory = 75,
+    GodballTerritoryDoubles = 76,
+    NonStandardSoccar = 77,
+    NonStandardSoccarDoubles = 78,
+    SnowdayTerritory = 79,
+    RunItBack = 80,
+    CarWars = 81,
+    PizzaParty = 82,
+    PushThePuck = 83,
+    Possession = 84,
+    FCShowdown = 86,
+    Sacrifice = 87,
+    JumpJam = 88,
+    SonicRush = 89,
+    UpToNoGood = 90,
+    ProjectAIM = 91,
 }
 
 impl Playlist {
-    pub fn from_player_count(player_count: usize) -> Option<Playlist> {
-        match player_count {
-            2 => Some(Playlist::Ones),
-            3 | 4 => Some(Playlist::Twos),
-            5 | 6 => Some(Playlist::Threes),
-            _ => None,
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Casual => "Casual",
+            Self::Standard => "Standard",
+            Self::Doubles => "Doubles",
+            Self::Duel => "Duel",
+            Self::Quads => "Quads",
+            Self::RankedQuads => "Quads",
+            Self::RankedStandard => "Standard",
+            Self::RankedTeamDoubles => "Doubles",
+            Self::RankedSoloDuel => "Duel",
+            Self::Breakout => "Dropshot",
+            Self::Rumble => "Rumble",
+            Self::SnowDayPromotion => "Snow Day",
+            Self::BasketballDoubles => "Hoops",
+            Self::Experimental => "Rocket Labs",
+            Self::Tournament => "Tournament Match",
+            Self::AutoTournament => "Tournament Match",
+            Self::FaceIt => "External Match",
+            Self::RankedRumble => "Rumble",
+            Self::RankedBreakout => "Dropshot",
+            Self::RankedBasketballDoubles => "Hoops",
+            Self::RankedSnowDay => "Snow Day",
+            Self::RankedHeatseekerDoubles => "Heatseeker",
+            Self::HauntedBall => "Ghost Hunt",
+            Self::BeachBall => "Beach Ball",
+            Self::Rugby => "Spike Rush",
+            Self::GodBall => "Heatseeker",
+            Self::GodBallSpooky => "Haunted Heatseeker",
+            Self::GodBallRicochet => "Heatseeker Ricochet",
+            Self::GodBallHaunted => "Haunted Heatseeker",
+            Self::GodBallDoubles => "Heatseeker",
+            Self::RumShot => "Dropshot Rumble",
+            Self::RumShotDoubles => "Dropshot Rumble",
+            Self::BoomerBall => "Boomer Ball",
+            Self::RocketLabs => "Rocket Labs",
+            Self::SpecialSnowDay => "Winter Breakaway",
+            Self::Football => "Gridiron",
+            Self::Cubic => "Super Cube",
+            Self::CubicSpooky => "Spooky Cube",
+            Self::TacticalRumble => "Tactical Rumble",
+            Self::SpringLoaded => "Spring Loaded",
+            Self::SpeedDemon => "Speed Demon",
+            Self::RumbleBM => "Gotham City Rumble",
+            Self::Knockout => "Knockout",
+            Self::ThirdWheel => "confidential_thirdwheel_test",
+            Self::MagnusFutball => "Nike FC Showdown",
+            Self::GForceFrenzy => "G-Force Frenzy",
+            Self::Territory => "Split Shot",
+            Self::TerritoryDoubles => "Split Shot Doubles",
+            Self::GodballTerritory => "Split Shot Heatseeker",
+            Self::GodballTerritoryDoubles => "Split Shot Heatseeker Doubles",
+            Self::OnlineFreeplay => "Online Free Play",
+            Self::NonStandardSoccar => "Non-Standard Soccar",
+            Self::NonStandardSoccarDoubles => "Non-Standard Soccar Doubles",
+            Self::SnowdayTerritory => "Split Shot Snow Day",
+            Self::RunItBack => "Run It Back",
+            Self::CarWars => "Spike Drop",
+            Self::PizzaParty => "Pizza Party",
+            Self::PushThePuck => "Push The Puck",
+            Self::Possession => "Possession Rumble",
+            Self::FCShowdown => "FIFA Soccar Strike",
+            Self::Sacrifice => "Demolition Duel",
+            Self::JumpJam => "Jump Jam",
+            Self::SonicRush => "Sonic Spin",
+            Self::UpToNoGood => "Up To No Good",
+            Self::ProjectAIM => "FREE AERIALS *not clickbait*",
+            Self::PrivateMatch => "Private Match",
+            Self::Season => "Season Match",
+            Self::Exhibition => "Exhibition Match",
+            Self::Training => "Training",
+            Self::Workshop => "Workshop Map",
+            Self::CustomTraining => "Custom Training",
+            Self::CustomTrainingEditor => "Editing Custom Training",
+            Self::LocalMatch => "Local Match",
+        }
+    }
+
+    pub fn is_real_match(self) -> bool {
+        match self {
+            Self::Training | Self::Workshop | Self::CustomTraining | Self::CustomTrainingEditor => {
+                false
+            }
+            _ => true,
         }
     }
 }
 
 impl fmt::Display for Playlist {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Playlist::Ones => "Duel",
-                Playlist::Twos => "Doubles",
-                Playlist::Threes => "Standard",
-            }
-        )
+        write!(f, "{}", self.as_str())
     }
 }

@@ -1,14 +1,12 @@
 use crate::{
     common::channel::Sender,
+    matches::apis::PlayerSkillInformation,
     player_info::PlayerInfoServiceCommand,
     rocket_league::{Platform, Playlist, Rank, Team},
     stats_api::TeamScores,
 };
 
-use super::super::{
-    apis::EventRanks,
-    models::{MatchInfo, MatchPlayer},
-};
+use super::super::models::{MatchInfo, MatchPlayer};
 
 use eframe::egui::{self, Color32};
 use std::cmp::Ordering;
@@ -146,19 +144,17 @@ impl<'a> MatchRenderer<'a> {
         ui.end_row();
     }
 
-    fn render_player_rank_cell(&mut self, ui: &mut egui::Ui, skill: &Arc<EventRanks>) {
-        let Some(playlist) = Playlist::from_player_count(self.match_info.max_active_players) else {
+    fn render_player_rank_cell(
+        &mut self,
+        ui: &mut egui::Ui,
+        skill_info: &Arc<PlayerSkillInformation>,
+    ) {
+        let Some(playlist) = self.match_info.playlist else {
             center_label(ui, "-");
             return;
         };
 
-        let rank = match playlist {
-            Playlist::Ones => skill.duels.as_ref(),
-            Playlist::Twos => skill.doubles.as_ref(),
-            Playlist::Threes => skill.standard.as_ref(),
-        };
-
-        let Some(rank) = rank else {
+        let Some(rank) = skill_info.get_playlist(playlist) else {
             center_label(ui, "-");
             return;
         };
@@ -185,9 +181,13 @@ impl<'a> MatchRenderer<'a> {
         });
     }
 
-    fn render_rank_list(ui: &mut egui::Ui, muted: bool, skill: &Arc<EventRanks>) {
+    fn render_rank_list(ui: &mut egui::Ui, muted: bool, skill: &Arc<PlayerSkillInformation>) {
         ui.horizontal(|ui| {
-            let modes = [&skill.duels, &skill.doubles, &skill.standard];
+            let modes = [
+                skill.get_playlist(Playlist::RankedSoloDuel),
+                skill.get_playlist(Playlist::RankedTeamDoubles),
+                skill.get_playlist(Playlist::RankedStandard),
+            ];
 
             for mode in modes {
                 // per-rank mmr + icon

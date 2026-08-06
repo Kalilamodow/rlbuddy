@@ -24,68 +24,63 @@ pub struct GetPlayerSkillsResponse {
     playlists: Vec<GetPlayerSkillsPlaylistData>,
 }
 
-impl GetPlayerSkillsResponse {
-    fn get_playlist(&self, playlist: Playlist) -> Option<&GetPlayerSkillsPlaylistData> {
-        let playlist_id: u8 = playlist.into();
-        self.playlists.iter().find(|sk| sk.id == playlist_id)
-    }
-}
-
 #[derive(Debug)]
-pub struct PlayerSkillInformation {
+pub struct PlaylistSkillInformation {
+    pub playlist: Playlist,
     pub rank: Rank,
     pub div: Division,
     pub mmr: i16,
     pub rank_is_estimate: bool,
 }
 
-impl PlayerSkillInformation {
-    fn from_playlist(playlist: &GetPlayerSkillsPlaylistData) -> PlayerSkillInformation {
-        let actual_rank = Rank::try_from_primitive(playlist.tier).expect("Failed to convert rank");
+impl From<GetPlayerSkillsPlaylistData> for PlaylistSkillInformation {
+    fn from(value: GetPlayerSkillsPlaylistData) -> Self {
+        let actual_rank = Rank::try_from_primitive(value.tier).expect("Failed to convert rank");
         let use_estimate = actual_rank == Rank::Unranked;
 
-        PlayerSkillInformation {
+        Self {
+            playlist: Playlist::try_from_primitive(value.id).unwrap(),
             rank: if use_estimate {
-                Rank::estimate_from_mmr(playlist.mmr)
+                Rank::estimate_from_mmr(value.mmr)
             } else {
                 actual_rank
             },
-            div: Division::from(playlist.division),
-            mmr: playlist.mmr,
+            div: Division::from(value.division),
+            mmr: value.mmr,
             rank_is_estimate: use_estimate,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct EventRanks {
-    pub duels: Option<PlayerSkillInformation>,
-    pub doubles: Option<PlayerSkillInformation>,
-    pub standard: Option<PlayerSkillInformation>,
+pub struct PlayerSkillInformation {
+    playlists: Vec<PlaylistSkillInformation>,
 }
 
-impl EventRanks {
-    fn from_skills(skill: &GetPlayerSkillsResponse) -> EventRanks {
-        EventRanks {
-            duels: skill
-                .get_playlist(Playlist::Ones)
-                .map(PlayerSkillInformation::from_playlist),
-            doubles: skill
-                .get_playlist(Playlist::Twos)
-                .map(PlayerSkillInformation::from_playlist),
-            standard: skill
-                .get_playlist(Playlist::Threes)
-                .map(PlayerSkillInformation::from_playlist),
+impl PlayerSkillInformation {
+    pub fn get_playlist(&self, playlist: Playlist) -> Option<&PlaylistSkillInformation> {
+        self.playlists.iter().find(|p| p.playlist == playlist)
+    }
+}
+
+impl From<GetPlayerSkillsResponse> for PlayerSkillInformation {
+    fn from(value: GetPlayerSkillsResponse) -> Self {
+        Self {
+            playlists: value
+                .playlists
+                .into_iter()
+                .map(PlaylistSkillInformation::from)
+                .collect(),
         }
     }
 }
 
-pub type RankAPI = CachedHttpApi<String, EventRanks, GetPlayerSkillsResponse>;
+pub type RankAPI = CachedHttpApi<String, PlayerSkillInformation, GetPlayerSkillsResponse>;
 
 pub fn new_rank_api(context: egui::Context) -> RankAPI {
     CachedHttpApi::new(
         context,
         Box::new(|player_id| format!("{}?playerId={}", API_URL, urlencoding::encode(player_id))),
-        Arc::new(|response| Some(EventRanks::from_skills(&response))),
+        Arc::new(|response| Some(response.into())),
     )
 }

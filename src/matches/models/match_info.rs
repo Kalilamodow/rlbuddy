@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::SystemTime};
 
 use crate::{
-    matches::apis::{EventRanks, NameAPI},
-    rocket_league::{Platform, Team},
+    matches::apis::{NameAPI, PlayerSkillInformation},
+    rocket_league::{Platform, Playlist, Team},
     stats_api::{MatchState, PlayerData, TeamScores},
 };
 
@@ -12,7 +12,7 @@ pub struct MatchPlayer {
     pub uncensored_name: Option<Arc<String>>,
     pub epic_name: Option<Arc<String>>,
     pub data: PlayerData,
-    pub skill: Option<Arc<EventRanks>>,
+    pub skill: Option<Arc<PlayerSkillInformation>>,
     pub is_local_player: bool,
 }
 
@@ -64,6 +64,7 @@ pub struct MatchInfo {
     pub started_at: SystemTime,
     pub max_active_players: usize,
     pub arena: Option<&'static str>,
+    pub playlist: Option<Playlist>,
     pub state: MatchState,
 }
 
@@ -77,6 +78,7 @@ impl Default for MatchInfo {
             started_at: SystemTime::now(),
             max_active_players: 0,
             arena: None,
+            playlist: None,
             state: MatchState::Game,
         }
     }

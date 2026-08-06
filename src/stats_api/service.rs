@@ -1,3 +1,4 @@
+use num_enum::TryFromPrimitive;
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
@@ -12,7 +13,7 @@ use std::{
 
 use crate::{
     common::eventsource::{EventReceiver, EventSource},
-    rocket_league::{Platform, Team, asset_to_arena},
+    rocket_league::{Platform, Playlist, Team, asset_to_arena},
 };
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +58,7 @@ struct StatsApiGameData {
     #[serde(rename = "bReplay")]
     replay: bool,
     target: Option<StatsApiPlayerTargetData>,
+    playlist_id: u8,
 }
 
 impl StatsApiGameData {
@@ -155,6 +157,7 @@ pub struct MatchUpdate {
     pub players: Vec<PlayerData>,
     pub arena: &'static str,
     pub state: MatchState,
+    pub playlist: Option<Playlist>,
 }
 
 pub enum RLEvent {
@@ -286,6 +289,7 @@ impl StatsApi {
                         .into_iter()
                         .filter_map(parse_stats_api_player)
                         .collect(),
+                    playlist: Playlist::try_from_primitive(data.game.playlist_id).ok(),
                 }))
             }
             "MatchCreated" => {
