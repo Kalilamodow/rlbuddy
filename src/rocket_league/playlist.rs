@@ -165,6 +165,46 @@ impl Playlist {
             Self::Training | Self::Workshop | Self::CustomTraining | Self::CustomTrainingEditor
         )
     }
+
+    pub fn infer_from_player_count(match_player_count: u8) -> Option<Self> {
+        Some(match match_player_count {
+            1 => Self::Training,
+            2 => Self::Duel,
+            3 | 4 => Self::RankedTeamDoubles,
+            5 | 6 => Self::RankedStandard,
+            7 | 8 => Self::RankedQuads,
+            _ => return None,
+        })
+    }
+
+    pub fn in_ranked(self) -> Option<Self> {
+        Some(match self {
+            Self::Duel | Self::RankedSoloDuel => Self::RankedSoloDuel,
+            Self::Doubles | Self::RankedTeamDoubles => Self::RankedTeamDoubles,
+            Self::Standard | Self::RankedStandard => Self::RankedStandard,
+            Self::Quads | Self::RankedQuads => Self::RankedQuads,
+            Self::SnowDayPromotion
+            | Self::SnowdayTerritory
+            | Self::SpecialSnowDay
+            | Self::RankedSnowDay => Self::RankedSnowDay,
+            Self::BasketballDoubles | Self::RankedBasketballDoubles => {
+                Self::RankedBasketballDoubles
+            }
+            Self::Rumble | Self::RumbleBM | Self::TacticalRumble | Self::RankedRumble => {
+                Self::RankedRumble
+            }
+            Self::Breakout | Self::RankedBreakout => Self::RankedBreakout,
+            Self::GodBall
+            | Self::GodBallHaunted
+            | Self::GodballTerritory
+            | Self::GodballTerritoryDoubles
+            | Self::GodBallDoubles
+            | Self::GodBallRicochet
+            | Self::GodBallSpooky
+            | Self::RankedHeatseekerDoubles => Self::RankedHeatseekerDoubles,
+            _ => return None,
+        })
+    }
 }
 
 impl fmt::Display for Playlist {

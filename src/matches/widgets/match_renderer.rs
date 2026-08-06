@@ -153,12 +153,19 @@ impl<'a> MatchRenderer<'a> {
         ui: &mut egui::Ui,
         skill_info: &Arc<PlayerSkillInformation>,
     ) {
-        let Some(playlist) = self.match_info.playlist else {
+        let playlist_to_show = self
+            .match_info
+            .playlist
+            .map(Playlist::in_ranked)
+            .flatten()
+            .or_else(|| Playlist::infer_from_player_count(self.match_info.players.len() as u8));
+
+        let Some(playlist_to_show) = playlist_to_show else {
             center_label(ui, "-");
             return;
         };
 
-        let Some(rank) = skill_info.get_playlist(playlist) else {
+        let Some(rank) = skill_info.get_playlist(playlist_to_show) else {
             center_label(ui, "-");
             return;
         };
@@ -169,15 +176,14 @@ impl<'a> MatchRenderer<'a> {
                     egui::Image::new(Rank::Unranked.to_image())
                         .fit_to_exact_size(egui::vec2(28.0, 28.0)),
                 )
-                .on_hover_text(format!("Unranked in {playlist}"))
+                .on_hover_text(format!("Unranked in {playlist_to_show}"))
             } else {
                 ui.add(
                     egui::Image::new(rank.rank.to_image())
                         .fit_to_exact_size(egui::vec2(28.0, 28.0)),
                 )
                 .on_hover_text(format!(
-                    "{} rank: {}{}",
-                    playlist,
+                    "{playlist_to_show} rank: {}{}",
                     rank.rank.as_str(),
                     rank.div
                 ))
