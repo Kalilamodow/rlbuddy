@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::common::ThreadedReadWriteStateHandle;
+use crate::{common::ThreadedReadWriteStateHandle, hotkey::service::SelectableControllerButton};
 
 use super::service::{HotkeySettings, SelectableHotkey};
 
@@ -19,7 +19,7 @@ impl egui::Widget for &HotkeySettingsWidget {
         let mut settings = self.settings.write();
 
         ui.vertical_centered_justified(|ui| {
-            egui::ComboBox::from_label("Hotkey")
+            egui::ComboBox::from_label("Hotkey (kb)")
                 .selected_text(settings.key.as_str())
                 .show_ui(ui, |ui| {
                     for key in [
@@ -32,6 +32,21 @@ impl egui::Widget for &HotkeySettingsWidget {
                     ] {
                         let key_str = key.as_str();
                         ui.selectable_value(&mut settings.key, key, key_str);
+                    }
+                });
+
+            egui::ComboBox::from_label("Hotkey (gamepad)")
+                .selected_text(settings.button.as_str())
+                .show_ui(ui, |ui| {
+                    for key in [
+                        SelectableControllerButton::LeftBumper,
+                        SelectableControllerButton::RightBumper,
+                        SelectableControllerButton::Select,
+                        SelectableControllerButton::Start,
+                        SelectableControllerButton::Disabled,
+                    ] {
+                        let key_str = key.as_str();
+                        ui.selectable_value(&mut settings.button, key, key_str);
                     }
                 });
         })

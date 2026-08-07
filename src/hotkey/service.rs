@@ -1,9 +1,8 @@
-use std::{collections::HashSet, sync::mpsc, thread};
-
-use rdev::{EventType, Key};
-use serde::{Deserialize, Serialize};
-
 use crate::common::{ThreadedReadWriteStateHandle, ThreadedReadonlyStateHandle};
+use gilrs::{Button, Gilrs};
+use rdev::Key;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, sync::mpsc, thread, time};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SelectableHotkey {
@@ -40,19 +39,19 @@ impl SelectableHotkey {
     }
 }
 
-struct InputManager {
+struct KeyboardInputManager {
     keys_pressed: HashSet<Key>,
     was_open_before: bool,
     tx: mpsc::Sender<bool>,
     settings: ThreadedReadonlyStateHandle<HotkeySettings>,
 }
 
-impl InputManager {
+impl KeyboardInputManager {
     pub fn new(
         tx: mpsc::Sender<bool>,
         settings: ThreadedReadonlyStateHandle<HotkeySettings>,
     ) -> Self {
-        InputManager {
+        KeyboardInputManager {
             keys_pressed: HashSet::new(),
             was_open_before: false,
             tx,
@@ -72,10 +71,10 @@ impl InputManager {
         };
 
         match event.event_type {
-            EventType::KeyPress(key) => {
+            rdev::EventType::KeyPress(key) => {
                 self.keys_pressed.insert(key);
             }
-            EventType::KeyRelease(key) => {
+            rdev::EventType::KeyRelease(key) => {
                 self.keys_pressed.remove(&key);
             }
             _ => {}
@@ -93,9 +92,80 @@ impl InputManager {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SelectableControllerButton {
+    #[default]
+    Select,
+    Start,
+    LeftBumper,
+    RightBumper,
+    Disabled,
+}
+
+impl SelectableControllerButton {
+    pub fn to_gilrs_button(&self) -> Option<Button> {
+        Some(match self {
+            Self::Disabled => return None,
+            Self::Select => Button::Select,
+            Self::Start => Button::Start,
+            Self::LeftBumper => Button::LeftTrigger,
+            Self::RightBumper => Button::RightTrigger,
+        })
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Disabled => "Disabled",
+            Self::Select => "Select",
+            Self::Start => "Start",
+            Self::LeftBumper => "Left bumper",
+            Self::RightBumper => "Right bumper",
+        }
+    }
+}
+
+struct ControllerInputManager {
+    tx: mpsc::Sender<bool>,
+    settings: ThreadedReadonlyStateHandle<HotkeySettings>,
+}
+
+impl ControllerInputManager {
+    pub fn new(
+        tx: mpsc::Sender<bool>,
+        settings: ThreadedReadonlyStateHandle<HotkeySettings>,
+    ) -> Self {
+        Self { tx, settings }
+    }
+
+    pub fn listen(self) {
+        let mut g = Gilrs::new().unwrap();
+
+        loop {
+            while let Some(event) = g.next_event() {
+                match event.event {
+                    gilrs::EventType::ButtonPressed(button, _) => {
+                        if Some(button) == self.settings.read().button.to_gilrs_button() {
+                            self.tx.send(true).unwrap();
+                        }
+                    }
+                    gilrs::EventType::ButtonReleased(button, _) => {
+                        if Some(button) == self.settings.read().button.to_gilrs_button() {
+                            self.tx.send(false).unwrap();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            thread::sleep(time::Duration::from_millis(5));
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HotkeySettings {
     pub key: SelectableHotkey,
+    pub button: SelectableControllerButton,
 }
 
 pub struct HotkeyService {
@@ -106,11 +176,22 @@ impl HotkeyService {
     pub fn new(overlay_tx: mpsc::Sender<bool>, settings: Option<HotkeySettings>) -> Self {
         let settings = ThreadedReadWriteStateHandle::new(settings.unwrap_or_default());
 
-        let settings_for_manager = settings.clone();
+        let settings_for_kb_manager = settings.clone();
+        let overlay_tx_for_kb_manager = overlay_tx.clone();
         thread::spawn(move || {
-            let manager = InputManager::new(
-                overlay_tx,
-                ThreadedReadonlyStateHandle::over(&settings_for_manager),
+            let manager = KeyboardInputManager::new(
+                overlay_tx_for_kb_manager,
+                ThreadedReadonlyStateHandle::over(&settings_for_kb_manager),
+            );
+            manager.listen();
+        });
+
+        let settings_for_ctrl_manager = settings.clone();
+        let overlay_tx_for_ctrl_manager = overlay_tx.clone();
+        thread::spawn(move || {
+            let manager = ControllerInputManager::new(
+                overlay_tx_for_ctrl_manager,
+                ThreadedReadonlyStateHandle::over(&settings_for_ctrl_manager),
             );
             manager.listen();
         });
